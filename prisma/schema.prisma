@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./foreclosure.db"
+}
+
+model lvr_land {
+  id             String  @id
+  city           String?
+  district       String?
+  address        String?
+  tx_type        String?
+  tx_date        String?
+  tx_date_iso    String?
+  total_price    Int?
+  unit_price_sqm Float?
+  building_type  String?
+  main_use       String?
+  area_sqm       Float?
+  bedrooms       Int?
+  halls          Int?
+  bathrooms      Int?
+  elevator       String?
+  total_floors   String?
+  floor          String?
+  land_area_sqm  Float?
+  main_area      Float?
+  aux_area       Float?
+  balcony_area   Float?
+  build_complete String?
+  season         String?
+  notes          String?
+
+  @@index([city],        map: "idx_lvr_city")
+  @@index([district],    map: "idx_lvr_district")
+  @@index([tx_date_iso], map: "idx_lvr_date")
+  @@index([total_price], map: "idx_lvr_price")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model houses {
+  id             String @id
+  title          String?
+  url            String?
+  city           String?
+  district       String?
+  address        String?
+  type           String?
+  status         String?
+  case_number    String?
+  price          Int?
+  unit_price     Float?
+  unit_price_str String?
+  next_price     Int?
+  deposit        String?
+  area           Float?
+  total_ping     String?
+  main_ping      String?
+  sub_ping       String?
+  extra_ping     String?
+  land_ping      String?
+  layout         String?
+  floor          String?
+  age            String?
+  elevator       String?
+  parking        String?
+  corner         String?
+  orientation    String?
+  community      String?
+  courtyard      String?
+  hoa            String?
+  haunted        String?
+  auction_date   String?
+  auction_time   String?
+  auction_round  String?
+  delivery       String?
+  land_use       String?
+  near_school    String?
+  near_traffic   String?
+  living         String?
+  agent          String?
+  company        String?
+  description    String?
+  bcr            String?
+  far            String?
+  land_category  String?
+  source             String?
+  source_id          String?
+  category           String?
+  is_agent_featured  Int?
+
+  @@index([city], map: "idx_city")
+  @@index([district], map: "idx_district")
+  @@index([price], map: "idx_price")
+}
+
+model lvr_presale {
+  id             String  @id
+  city           String?
+  district       String?
+  project_name   String?
+  building_unit  String?
+  address        String?
+  floor          String?
+  total_floors   String?
+  building_type  String?
+  main_use       String?
+  build_complete String?
+  area_sqm       Float?
+  main_area      Float?
+  aux_area       Float?
+  balcony_area   Float?
+  bedrooms       Int?
+  halls          Int?
+  bathrooms      Int?
+  elevator       String?
+  total_price    Int?
+  unit_price_sqm Float?
+  parking_price  Int?
+  tx_date        String?
+  tx_date_iso    String?
+  season         String?
+  notes          String?
+
+  @@index([city],             map: "idx_presale_city")
+  @@index([district],         map: "idx_presale_district")
+  @@index([tx_date_iso],      map: "idx_presale_date")
+  @@index([project_name],     map: "idx_presale_project")
+  @@index([city, district],   map: "idx_presale_city_dist")
+}

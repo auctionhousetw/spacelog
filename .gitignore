@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/app/generated/prisma
+
+# database files (use Turso in production)
+*.db
+*.db-shm
+*.db-wal
+
+# raw scraped data (large, not needed in deployment)
+/public/data/
