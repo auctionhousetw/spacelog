@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./foreclosure.db"
+  provider = "cockroachdb"
+  url      = env("DATABASE_URL")
 }
 
 model lvr_land {
@@ -15,7 +15,7 @@ model lvr_land {
   tx_type        String?
   tx_date        String?
   tx_date_iso    String?
-  total_price    Int?
+  total_price    Float?
   unit_price_sqm Float?
   building_type  String?
   main_use       String?
@@ -51,10 +51,10 @@ model houses {
   type           String?
   status         String?
   case_number    String?
-  price          Int?
+  price          Float?
   unit_price     Float?
   unit_price_str String?
-  next_price     Int?
+  next_price     Float?
   deposit        String?
   area           Float?
   total_ping     String?
@@ -117,9 +117,9 @@ model lvr_presale {
   halls          Int?
   bathrooms      Int?
   elevator       String?
-  total_price    Int?
+  total_price    Float?
   unit_price_sqm Float?
-  parking_price  Int?
+  parking_price  Float?
   tx_date        String?
   tx_date_iso    String?
   season         String?

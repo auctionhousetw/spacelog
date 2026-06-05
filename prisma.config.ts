@@ -7,6 +7,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: "file:./foreclosure.db", // 👉 已將路徑精準替換為您的實體資料庫檔案
+    url: process.env.DATABASE_URL!,
   },
 });
