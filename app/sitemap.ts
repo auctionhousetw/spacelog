@@ -6,7 +6,7 @@ declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSin
 const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
 
-const BASE = process.env.NEXT_PUBLIC_BASE_URL || 'https://example.com';
+const BASE = process.env.NEXT_PUBLIC_BASE_URL || 'https://402law.house';
 const COMMUNITY_CHUNK = 45000;
 const COMMUNITY_ID_START = 3;
 
@@ -16,14 +16,17 @@ export async function generateSitemaps() {
     const rows = await prisma.$queryRawUnsafe<[{ count: bigint }]>(
       `SELECT COUNT(*) as count FROM (
          SELECT city, district,
-           CASE WHEN instr(address,'號') > 0
-                THEN substr(address,1,instr(address,'號'))
+           CASE WHEN STRPOS(address,'號') > 0
+                THEN SUBSTRING(address,1,STRPOS(address,'號'))
                 ELSE address END as addr
          FROM lvr_land
          WHERE city IS NOT NULL AND district IS NOT NULL
            AND tx_type LIKE '%建物%' AND total_price > 0
            AND address IS NOT NULL AND address != ''
-         GROUP BY city, district, addr
+         GROUP BY city, district,
+           CASE WHEN STRPOS(address,'號') > 0
+                THEN SUBSTRING(address,1,STRPOS(address,'號'))
+                ELSE address END
          HAVING COUNT(*) >= 3
        )`
     );
@@ -54,7 +57,36 @@ export default async function sitemap(
         { url: `${BASE}/auction`,   lastModified: new Date(), changeFrequency: 'daily',  priority: 0.9 },
         { url: `${BASE}/price`,     lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
         { url: `${BASE}/presale`,   lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
+        { url: `${BASE}/compare`,   lastModified: new Date(), changeFrequency: 'weekly', priority: 0.7 },
+        { url: `${BASE}/listing`,   lastModified: new Date(), changeFrequency: 'weekly', priority: 0.7 },
+        { url: `${BASE}/land-readjustment`,    lastModified: new Date(), changeFrequency: 'monthly', priority: 0.8 },
+        { url: `${BASE}/land-readjustment/台中`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.75 },
+        { url: `${BASE}/special-properties`,   lastModified: new Date(), changeFrequency: 'weekly',  priority: 0.8 },
+        { url: `${BASE}/special-properties/inherited-land`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.75 },
       );
+
+      // 特殊物件/繼承土地：各行政區頁
+      const inheritedDistricts = await prisma.$queryRawUnsafe<{ city: string; district: string }[]>(
+        `SELECT DISTINCT city, district FROM inherited_land
+         WHERE city IS NOT NULL AND district IS NOT NULL ORDER BY city, district`
+      ).catch(() => []);
+      for (const r of inheritedDistricts) {
+        entries.push({
+          url: `${BASE}/special-properties/inherited-land/${encodeURIComponent(r.city)}/${encodeURIComponent(r.district)}`,
+          changeFrequency: 'weekly',
+          priority: 0.7,
+        });
+      }
+
+      // 重劃區各期 Hub 頁（台中 1–16 期）
+      const TAICHUNG_PERIODS = ['1期','2期','3期','4期','5期','6期','7期','8期','9期','10期','11期','12期','13期','14期','15期','16期'];
+      for (const p of TAICHUNG_PERIODS) {
+        entries.push({
+          url: `${BASE}/land-readjustment/${encodeURIComponent('台中')}/${encodeURIComponent(p)}`,
+          changeFrequency: 'monthly',
+          priority: 0.7,
+        });
+      }
 
       // 法拍縣市頁
       const cities = await prisma.$queryRawUnsafe<{ city: string }[]>(
@@ -87,7 +119,7 @@ export default async function sitemap(
         `SELECT id, city, district, auction_date
          FROM houses
          WHERE city IS NOT NULL AND district IS NOT NULL
-           AND auction_date >= date('now', '-2 years')
+           AND auction_date >= to_char(CURRENT_DATE - INTERVAL '2 years', 'YYYY-MM-DD')
          ORDER BY auction_date DESC`
       );
       for (const h of houses) {
@@ -142,11 +174,11 @@ export default async function sitemap(
       const lvrRoads = await prisma.$queryRawUnsafe<{ city: string; district: string; road_name: string }[]>(
         `SELECT city, district,
                 CASE
-                  WHEN instr(address,'路') > 0
-                    AND (instr(address,'街')=0 OR instr(address,'路')<=instr(address,'街'))
-                    THEN substr(address,1,instr(address,'路'))
-                  WHEN instr(address,'街') > 0
-                    THEN substr(address,1,instr(address,'街'))
+                  WHEN STRPOS(address,'路') > 0
+                    AND (STRPOS(address,'街')=0 OR STRPOS(address,'路')<=STRPOS(address,'街'))
+                    THEN SUBSTRING(address,1,STRPOS(address,'路'))
+                  WHEN STRPOS(address,'街') > 0
+                    THEN SUBSTRING(address,1,STRPOS(address,'街'))
                   ELSE NULL
                 END as road_name,
                 COUNT(*) as n
@@ -154,9 +186,17 @@ export default async function sitemap(
          WHERE city IS NOT NULL AND district IS NOT NULL
            AND tx_type LIKE '%建物%' AND unit_price_sqm > 0
            AND address IS NOT NULL AND address != ''
-         GROUP BY city, district, road_name
-         HAVING n >= 5 AND road_name IS NOT NULL AND road_name != ''
-         ORDER BY city, district, n DESC`
+         GROUP BY city, district,
+                  CASE
+                    WHEN STRPOS(address,'路') > 0
+                      AND (STRPOS(address,'街')=0 OR STRPOS(address,'路')<=STRPOS(address,'街'))
+                      THEN SUBSTRING(address,1,STRPOS(address,'路'))
+                    WHEN STRPOS(address,'街') > 0
+                      THEN SUBSTRING(address,1,STRPOS(address,'街'))
+                    ELSE NULL
+                  END
+         HAVING COUNT(*) >= 5
+         ORDER BY city, district, COUNT(*) DESC`
       ).catch(() => []);
       for (const r of lvrRoads) {
         entries.push({
@@ -203,15 +243,18 @@ export default async function sitemap(
       const offset = page * COMMUNITY_CHUNK;
       const communities = await prisma.$queryRawUnsafe<{ city: string; district: string; addr: string }[]>(
         `SELECT city, district,
-                CASE WHEN instr(address,'號') > 0
-                     THEN substr(address,1,instr(address,'號'))
+                CASE WHEN STRPOS(address,'號') > 0
+                     THEN SUBSTRING(address,1,STRPOS(address,'號'))
                      ELSE address END as addr
          FROM lvr_land
          WHERE city IS NOT NULL AND district IS NOT NULL
            AND tx_type LIKE '%建物%' AND total_price > 0
            AND address IS NOT NULL AND address != ''
-         GROUP BY city, district, addr
-         HAVING COUNT(*) >= 3 AND addr IS NOT NULL AND addr != ''
+         GROUP BY city, district,
+                  CASE WHEN STRPOS(address,'號') > 0
+                       THEN SUBSTRING(address,1,STRPOS(address,'號'))
+                       ELSE address END
+         HAVING COUNT(*) >= 3
          ORDER BY COUNT(*) DESC
          LIMIT ${COMMUNITY_CHUNK} OFFSET ${offset}`
       ).catch(() => []);

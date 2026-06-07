@@ -25,13 +25,14 @@ export default async function LvrCityPage({ params }: { params: Params }) {
   let districts: any[] = [];
   let cityStats: any = null;
 
+  const safeC = c.replace(/'/g, "''");
   try {
     const [statsRows, distRows] = await Promise.all([
       prisma.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*) as n,
                 AVG(CASE WHEN total_price > 0 AND tx_type LIKE '%建物%' THEN total_price END) as avg_build,
                 MAX(tx_date_iso) as latest
-         FROM lvr_land WHERE city = ?`, c
+         FROM lvr_land WHERE city = '${safeC}'`
       ),
       prisma.$queryRawUnsafe<any[]>(
         `SELECT district,
@@ -41,9 +42,9 @@ export default async function LvrCityPage({ params }: { params: Params }) {
                 AVG(CASE WHEN unit_price_sqm > 0 AND tx_type LIKE '%建物%' THEN unit_price_sqm END) as avg_unit,
                 MAX(tx_date_iso) as latest
          FROM lvr_land
-         WHERE city = ? AND district IS NOT NULL AND district != ''
+         WHERE city = '${safeC}' AND district IS NOT NULL AND district != ''
          GROUP BY district
-         ORDER BY n DESC`, c
+         ORDER BY n DESC`
       ),
     ]);
 
@@ -88,6 +89,7 @@ export default async function LvrCityPage({ params }: { params: Params }) {
           <a href="/" className="site-logo">法拍屋<span>資訊平台</span></a>
           <a href="/" className="nav-link">法拍屋</a>
           <a href="/price" className="nav-link blue">實價登錄</a>
+          <a href="/compare" className="nav-link" style={{ color: '#2a5298' }}>比較</a>
         </div>
       </header>
 

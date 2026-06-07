@@ -29,9 +29,11 @@ export async function generateMetadata({ params }: { params: Params }) {
   const d = decodeURIComponent(district);
   let avg = 0, n = 0;
   try {
+    const safeC0 = c.replace(/'/g, "''");
+    const safeD0 = d.replace(/'/g, "''");
     const rows = await prisma.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg
-       FROM lvr_land WHERE city=? AND district=? AND tx_type LIKE '%建物%'`, c, d
+       FROM lvr_land WHERE city='${safeC0}' AND district='${safeD0}' AND tx_type LIKE '%建物%'`
     );
     avg = rows[0]?.avg ? Math.round(Number(rows[0].avg) / 10000) : 0;
     n   = Number(rows[0]?.n || 0);
@@ -96,8 +98,7 @@ export default async function LvrDistrictPage({
            bldTypeStatsRows, roadStatsRows, yearTrendRows, priceRangeRows] = await Promise.all([
       // 交易列表
       prisma.$queryRawUnsafe<any[]>(
-        `SELECT * FROM lvr_land WHERE ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
-        pageSize, (page - 1) * pageSize,
+        `SELECT * FROM lvr_land WHERE ${where} ORDER BY ${orderBy} LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`
       ),
       // 總筆數
       prisma.$queryRawUnsafe<any[]>(
@@ -139,12 +140,12 @@ export default async function LvrDistrictPage({
       prisma.$queryRawUnsafe<any[]>(
         `SELECT
            CASE
-             WHEN instr(address,'路') > 0
-               AND (instr(address,'街') = 0 OR instr(address,'路') <= instr(address,'街'))
-               THEN substr(address, 1, instr(address,'路'))
-             WHEN instr(address,'街') > 0
-               THEN substr(address, 1, instr(address,'街'))
-             ELSE substr(address, 1, 6)
+             WHEN STRPOS(address,'路') > 0
+               AND (STRPOS(address,'街') = 0 OR STRPOS(address,'路') <= STRPOS(address,'街'))
+               THEN SUBSTRING(address, 1, STRPOS(address,'路'))
+             WHEN STRPOS(address,'街') > 0
+               THEN SUBSTRING(address, 1, STRPOS(address,'街'))
+             ELSE SUBSTRING(address, 1, 6)
            END as road_name,
            COUNT(*) as n,
            AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit,
@@ -153,15 +154,22 @@ export default async function LvrDistrictPage({
          WHERE ${baseDistWhere} AND tx_type LIKE '%建物%'
            AND address IS NOT NULL AND address != ''
            AND unit_price_sqm > 0
-         GROUP BY road_name
-         HAVING n >= 2 AND road_name IS NOT NULL AND road_name != ''
+         GROUP BY CASE
+             WHEN STRPOS(address,'路') > 0
+               AND (STRPOS(address,'街') = 0 OR STRPOS(address,'路') <= STRPOS(address,'街'))
+               THEN SUBSTRING(address, 1, STRPOS(address,'路'))
+             WHEN STRPOS(address,'街') > 0
+               THEN SUBSTRING(address, 1, STRPOS(address,'街'))
+             ELSE SUBSTRING(address, 1, 6)
+           END
+         HAVING COUNT(*) >= 2
          ORDER BY avg_unit DESC
          LIMIT 10`,
       ),
       // 年度均價趨勢（按年分組，建物交易）
       prisma.$queryRawUnsafe<any[]>(
         `SELECT
-           substr(tx_date_iso, 1, 4) as year,
+           SUBSTRING(tx_date_iso, 1, 4) as year,
            COUNT(*) as n,
            AVG(CASE WHEN total_price > 0 THEN total_price END) as avg_price,
            AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit
@@ -169,9 +177,9 @@ export default async function LvrDistrictPage({
          WHERE ${baseDistWhere} AND tx_type LIKE '%建物%'
            AND tx_date_iso IS NOT NULL AND tx_date_iso != ''
            AND total_price > 0
-         GROUP BY year
-         HAVING year >= '2020' AND year <= '2030'
-         ORDER BY year`,
+         GROUP BY SUBSTRING(tx_date_iso, 1, 4)
+         HAVING SUBSTRING(tx_date_iso, 1, 4) >= '2020' AND SUBSTRING(tx_date_iso, 1, 4) <= '2030'
+         ORDER BY 1`,
       ),
       // 成交總價分布
       prisma.$queryRawUnsafe<any[]>(
@@ -205,7 +213,7 @@ export default async function LvrDistrictPage({
     // 同地址歷年成交：批次查詢當前頁面所有地址的歷史記錄
     const addrs = [...new Set(fetched.map((r: any) => r.address).filter(Boolean))] as string[];
     if (addrs.length > 0) {
-      const placeholders = addrs.map(() => '?').join(',');
+      const placeholders = addrs.map((_, i) => `$${i + 1}`).join(',');
       const histRows = await prisma.$queryRawUnsafe<any[]>(
         `SELECT address,
                 COUNT(*) as cnt,
@@ -213,17 +221,17 @@ export default async function LvrDistrictPage({
                 MAX(tx_date_iso) as latest,
                 MIN(CASE WHEN total_price > 0 THEN total_price END) as min_p,
                 MAX(CASE WHEN total_price > 0 THEN total_price END) as max_p,
-                GROUP_CONCAT(
+                STRING_AGG(
                   CASE WHEN total_price > 0
-                    THEN (substr(tx_date_iso,1,4) || ':' || CAST(ROUND(total_price/10000) AS TEXT) || '萬')
-                  END
-                  ORDER BY tx_date_iso DESC, ',') as history_summary
+                    THEN (SUBSTRING(tx_date_iso,1,4) || ':' || CAST(ROUND(total_price/10000) AS TEXT) || '萬')
+                  END,
+                  ',' ORDER BY tx_date_iso DESC) as history_summary
          FROM lvr_land
          WHERE city='${safeC}' AND district='${safeD}'
            AND address IN (${placeholders})
            AND tx_type LIKE '%建物%'
          GROUP BY address
-         HAVING cnt > 1`,
+         HAVING COUNT(*) > 1`,
         ...addrs
       );
       // 將歷史資訊合併進 records
@@ -337,6 +345,7 @@ export default async function LvrDistrictPage({
           <a href="/" className="site-logo">法拍屋<span>資訊平台</span></a>
           <a href="/" className="nav-link">法拍屋</a>
           <a href="/price" className="nav-link blue">實價登錄</a>
+          <a href="/compare" className="nav-link" style={{ color: '#2a5298' }}>比較</a>
         </div>
       </header>
 

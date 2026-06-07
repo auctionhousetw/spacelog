@@ -84,8 +84,7 @@ export default async function Home({ searchParams }: HomeProps) {
 
     const [fetched, countRes, distRows, featuredRows] = await Promise.all([
       prisma.$queryRawUnsafe<any[]>(
-        `SELECT * FROM houses WHERE ${whereStr} ORDER BY ${orderByStr} LIMIT ? OFFSET ?`,
-        pageSize, (page - 1) * pageSize
+        `SELECT * FROM houses WHERE ${whereStr} ORDER BY ${orderByStr} LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`
       ),
       prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*) as count FROM houses WHERE ${whereStr}`),
       prisma.houses.findMany({ where: { city }, select: { district: true }, distinct: ['district'] }),
@@ -293,6 +292,11 @@ export default async function Home({ searchParams }: HomeProps) {
               padding: '.28rem .75rem', border: '1px solid #2a5298', borderRadius: '2px',
               background: '#f0f5ff', whiteSpace: 'nowrap', transition: 'all .15s', flexShrink: 0 }}>
             實價登錄
+          </a>
+          <a href="/compare"
+            style={{ fontSize: '.8rem', fontWeight: 500, color: '#6b8cc7', textDecoration: 'none',
+              padding: '.28rem .75rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            比較
           </a>
 
           {/* 六都切換 */}

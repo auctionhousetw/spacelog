@@ -1,0 +1,33 @@
+🔄 Next.js + Prisma 更換 SQLite 資料庫 SOP
+事前準備：
+在執行替換前，請務必先在終端機按下 Ctrl + C，徹底關閉正在運行的 Next.js 伺服器。
+
+步驟一：替換實體檔案 (Copy & Replace)
+找到你剛用 Python 產出的最新 foreclosure.db。
+
+複製它，並貼到你的 Next.js 專案資料夾內：
+👉 你的專案目錄/my-real-estate-app/prisma/
+
+系統跳出提示時，請果斷選擇**「取代目的地中的檔案」**。
+
+步驟二：核彈級清除快取 (Clear Cache) - 🌟 最重要的一步
+為了防止 Next.js 咬住舊資料不放，必須強制刪除它的暫存區。
+
+在檔案總管中，進入你的 Next.js 專案主目錄（my-real-estate-app）。
+
+找到一個名叫 .next 的資料夾（注意前面有一個小點）。
+
+直接將整個 .next 資料夾刪除（不用怕，這只是暫存，伺服器重開就會自動重生）。
+
+步驟三：重啟伺服器 (Restart)
+回到終端機，確保路徑是在 my-real-estate-app 之下，輸入啟動指令：
+
+Bash
+npm run dev
+💡 進階狀況排除 (Bonus)
+Q：如果我用 Python 洗資料時，「新增或刪除」了某個資料表欄位怎麼辦？
+如果你改變了資料庫的「結構（Schema）」，除了做完上述 3 個步驟之外，在執行 npm run dev 之前，你必須多跑一個指令來更新 Prisma 的大腦：
+
+Bash
+npx prisma generate
+npx prisma studio

@@ -19,8 +19,9 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Params }) {
   const { city } = await params;
   const c = decodeURIComponent(city);
+  const safeC0 = c.replace(/'/g, "''");
   const rows = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT COUNT(*) as n, COUNT(DISTINCT district) as d FROM houses WHERE city=?`, c
+    `SELECT COUNT(*) as n, COUNT(DISTINCT district) as d FROM houses WHERE city='${safeC0}'`
   );
   const n = Number(rows[0]?.n || 0);
   const d = Number(rows[0]?.d || 0);
@@ -34,12 +35,13 @@ export async function generateMetadata({ params }: { params: Params }) {
 export default async function CityPage({ params }: { params: Params }) {
   const { city } = await params;
   const c = decodeURIComponent(city);
+  const safeC = c.replace(/'/g, "''");
 
   const [statsRows, districts, lvrRows] = await Promise.all([
     prisma.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n, COUNT(DISTINCT district) as d,
               AVG(CASE WHEN price>0 THEN price END) as avg
-       FROM houses WHERE city=?`, c
+       FROM houses WHERE city='${safeC}'`
     ),
     prisma.$queryRawUnsafe<any[]>(
       `SELECT district,
@@ -47,14 +49,14 @@ export default async function CityPage({ params }: { params: Params }) {
               AVG(CASE WHEN price>0 THEN price END) as avg,
               MAX(CASE WHEN auction_date!='' THEN auction_date END) as latest
        FROM houses
-       WHERE city=? AND district IS NOT NULL AND district!=''
-       GROUP BY district ORDER BY n DESC`, c
+       WHERE city='${safeC}' AND district IS NOT NULL AND district!=''
+       GROUP BY district ORDER BY n DESC`
     ),
     prisma.$queryRawUnsafe<any[]>(
       `SELECT AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price
        FROM lvr_land
-       WHERE city=? AND tx_type LIKE '%建物%'
-         AND tx_date_iso >= date('now','-2 years')`, c
+       WHERE city='${safeC}' AND tx_type LIKE '%建物%'
+         AND tx_date_iso >= to_char(CURRENT_DATE - INTERVAL '2 years', 'YYYY-MM-DD')`
     ).catch(() => []),
   ]);
 
@@ -106,6 +108,7 @@ export default async function CityPage({ params }: { params: Params }) {
           <a href="/" className="site-logo">法拍屋<span>資訊平台</span></a>
           <a href="/auction" className="nav-link active">法拍屋</a>
           <a href="/price"   className="nav-link" style={{ color: '#2a5298' }}>實價登錄</a>
+          <a href="/compare" className="nav-link" style={{ color: '#2a5298' }}>比較</a>
         </div>
       </header>
 

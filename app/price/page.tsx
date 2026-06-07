@@ -83,6 +83,7 @@ export default async function LvrPage() {
           <a href="/" className="site-logo">法拍屋<span>資訊平台</span></a>
           <a href="/" className="nav-link">法拍屋</a>
           <a href="/price" className="nav-link active">實價登錄</a>
+          <a href="/compare" className="nav-link" style={{ color: '#2a5298' }}>比較</a>
         </div>
       </header>
 

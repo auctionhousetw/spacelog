@@ -16,10 +16,12 @@ export async function generateMetadata({ params }: { params: Params }) {
   const d = decodeURIComponent(district);
   let n = 0, avg = 0, projects = 0;
   try {
+    const safeC0 = c.replace(/'/g, "''");
+    const safeD0 = d.replace(/'/g, "''");
     const rows = await prisma.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg,
               COUNT(DISTINCT project_name) as projects
-       FROM lvr_presale WHERE city=? AND district=?`, c, d
+       FROM lvr_presale WHERE city='${safeC0}' AND district='${safeD0}'`
     );
     n = Number(rows[0]?.n || 0);
     avg = rows[0]?.avg ? Math.round(Number(rows[0].avg) / 10000) : 0;
@@ -62,7 +64,7 @@ export default async function PresaleDistrictPage({ params }: { params: Params }
                 MIN(CASE WHEN total_price>0 THEN total_price END) as min_p,
                 MAX(CASE WHEN total_price>0 THEN total_price END) as max_p,
                 MAX(tx_date_iso) as latest,
-                GROUP_CONCAT(DISTINCT building_type) as types,
+                STRING_AGG(DISTINCT building_type, ',') as types,
                 AVG(area_sqm) as avg_area
          FROM lvr_presale
          WHERE city='${safeC}' AND district='${safeD}'
@@ -72,14 +74,14 @@ export default async function PresaleDistrictPage({ params }: { params: Params }
       ),
       // 年度走勢
       prisma.$queryRawUnsafe<any[]>(
-        `SELECT substr(tx_date_iso,1,4) as year,
+        `SELECT SUBSTRING(tx_date_iso,1,4) as year,
                 COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit
          FROM lvr_presale
          WHERE city='${safeC}' AND district='${safeD}' AND total_price > 0
            AND tx_date_iso IS NOT NULL
-         GROUP BY year ORDER BY year`
+         GROUP BY SUBSTRING(tx_date_iso, 1, 4) ORDER BY 1`
       ),
     ]);
     if (!statsRows[0] || Number(statsRows[0].n) === 0) notFound();
@@ -145,6 +147,7 @@ export default async function PresaleDistrictPage({ params }: { params: Params }
           <a href="/" className="site-logo">法拍屋<span>資訊平台</span></a>
           <a href="/presale" className="nav-link" style={{ color: '#1a6b3a' }}>預售屋</a>
           <a href="/price"   className="nav-link">實價登錄</a>
+          <a href="/compare" className="nav-link" style={{ color: '#2a5298' }}>比較</a>
         </div>
       </header>
 

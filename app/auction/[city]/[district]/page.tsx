@@ -31,8 +31,10 @@ export async function generateMetadata({ params }: { params: Params }) {
   const { city, district } = await params;
   const c = decodeURIComponent(city);
   const d = decodeURIComponent(district);
+  const safeC0 = c.replace(/'/g, "''");
+  const safeD0 = d.replace(/'/g, "''");
   const rows = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT COUNT(*) as n, AVG(price) as avg FROM houses WHERE city=? AND district=? AND price>0`, c, d
+    `SELECT COUNT(*) as n, AVG(price) as avg FROM houses WHERE city='${safeC0}' AND district='${safeD0}' AND price>0`
   );
   const n   = Number(rows[0]?.n || 0);
   const avg = rows[0]?.avg ? Math.floor(Number(rows[0].avg) / 10000) : null;
@@ -115,8 +117,7 @@ export default async function DistrictPage({
               auction_round, delivery, status, layout, floor, is_agent_featured
        FROM houses WHERE ${whereStr}
        ORDER BY ${orderByStr}
-       LIMIT ? OFFSET ?`,
-      PAGE_SIZE, (page - 1) * PAGE_SIZE
+       LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`
     ),
     prisma.$queryRawUnsafe<any[]>(
       `SELECT district, COUNT(*) as n FROM houses
@@ -139,16 +140,16 @@ export default async function DistrictPage({
        FROM lvr_land
        WHERE city='${safeC}' AND district='${safeD}'
          AND tx_type LIKE '%建物%'
-         AND tx_date_iso >= date('now','-2 years')`
+         AND tx_date_iso >= to_char(CURRENT_DATE - INTERVAL '2 years', 'YYYY-MM-DD')`
     ).catch(() => []),
     // 熱門法拍路段（取地址路/街名稱，≥2筆）
     prisma.$queryRawUnsafe<{ road: string; n: number; avg: number }[]>(
       `SELECT
          CASE
-           WHEN instr(address,'路')>0 AND (instr(address,'街')=0 OR instr(address,'路')<=instr(address,'街'))
-             THEN substr(address,1,instr(address,'路'))
-           WHEN instr(address,'街')>0
-             THEN substr(address,1,instr(address,'街'))
+           WHEN STRPOS(address,'路')>0 AND (STRPOS(address,'街')=0 OR STRPOS(address,'路')<=STRPOS(address,'街'))
+             THEN SUBSTRING(address,1,STRPOS(address,'路'))
+           WHEN STRPOS(address,'街')>0
+             THEN SUBSTRING(address,1,STRPOS(address,'街'))
            ELSE NULL
          END as road,
          COUNT(*) as n,
@@ -156,9 +157,22 @@ export default async function DistrictPage({
        FROM houses
        WHERE city='${safeC}' AND district='${safeD}'
          AND address IS NOT NULL AND address!=''
-       GROUP BY road
-       HAVING n>=2 AND road IS NOT NULL AND road!=''
-       ORDER BY n DESC LIMIT 8`
+       GROUP BY CASE
+           WHEN STRPOS(address,'路')>0 AND (STRPOS(address,'街')=0 OR STRPOS(address,'路')<=STRPOS(address,'街'))
+             THEN SUBSTRING(address,1,STRPOS(address,'路'))
+           WHEN STRPOS(address,'街')>0
+             THEN SUBSTRING(address,1,STRPOS(address,'街'))
+           ELSE NULL
+         END
+       HAVING COUNT(*)>=2
+         AND CASE
+           WHEN STRPOS(address,'路')>0 AND (STRPOS(address,'街')=0 OR STRPOS(address,'路')<=STRPOS(address,'街'))
+             THEN SUBSTRING(address,1,STRPOS(address,'路'))
+           WHEN STRPOS(address,'街')>0
+             THEN SUBSTRING(address,1,STRPOS(address,'街'))
+           ELSE NULL
+         END IS NOT NULL
+       ORDER BY COUNT(*) DESC LIMIT 8`
     ).catch(() => []),
     // 拍次統計
     prisma.$queryRawUnsafe<{ round_label: string; n: number; avg: number }[]>(

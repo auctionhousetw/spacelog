@@ -24,9 +24,8 @@ export async function generateMetadata({ params }: { params: Params }) {
       `SELECT COUNT(*) as n,
               AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit
        FROM lvr_land
-       WHERE city=? AND district=? AND tx_type LIKE '%建物%'
-         AND address LIKE ?`,
-      c, d, `${r}%`
+       WHERE city='${c.replace(/'/g, "''")}' AND district='${d.replace(/'/g, "''")}' AND tx_type LIKE '%建物%'
+         AND address LIKE '${r.replace(/'/g, "''").replace(/%/g, '\\%')}%'`
     );
     avg = rows[0]?.avg_unit ? Math.round(unitSqmToWanPerPing(Number(rows[0].avg_unit)) * 10) / 10 : 0;
     n   = Number(rows[0]?.n || 0);
@@ -72,8 +71,7 @@ export default async function PriceRoadPage({
   try {
     const [fetched, countRows, statsRows, trendRows, bldRows] = await Promise.all([
       prisma.$queryRawUnsafe<any[]>(
-        `SELECT * FROM lvr_land WHERE ${baseWhere} AND total_price > 0 ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
-        pageSize, (page - 1) * pageSize,
+        `SELECT * FROM lvr_land WHERE ${baseWhere} AND total_price > 0 ORDER BY ${orderBy} LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`
       ),
       prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*) as n FROM lvr_land WHERE ${baseWhere} AND total_price > 0`),
       prisma.$queryRawUnsafe<any[]>(
@@ -86,12 +84,12 @@ export default async function PriceRoadPage({
          FROM lvr_land WHERE ${baseWhere}`,
       ),
       prisma.$queryRawUnsafe<any[]>(
-        `SELECT substr(tx_date_iso,1,4) as year,
+        `SELECT SUBSTRING(tx_date_iso,1,4) as year,
                 COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit
          FROM lvr_land WHERE ${baseWhere} AND total_price > 0 AND tx_date_iso IS NOT NULL
-         GROUP BY year HAVING year >= '2020' ORDER BY year`,
+         GROUP BY SUBSTRING(tx_date_iso, 1, 4) HAVING SUBSTRING(tx_date_iso, 1, 4) >= '2020' ORDER BY 1`,
       ),
       // 路段內各建物類型分布
       prisma.$queryRawUnsafe<any[]>(
@@ -162,6 +160,7 @@ export default async function PriceRoadPage({
           <a href="/" className="site-logo">法拍屋<span>資訊平台</span></a>
           <a href="/auction" className="nav-link">法拍屋</a>
           <a href="/price" className="nav-link" style={{ color: '#2a5298' }}>實價登錄</a>
+          <a href="/compare" className="nav-link" style={{ color: '#2a5298' }}>比較</a>
         </div>
       </header>
 

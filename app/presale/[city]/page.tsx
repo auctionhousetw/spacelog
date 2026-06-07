@@ -27,6 +27,7 @@ export default async function PresaleCityPage({ params }: { params: Params }) {
   let districts: any[] = [], cityStats: any = null;
 
   try {
+    const safeC = c.replace(/'/g, "''");
     const [statsRows, distRows] = await Promise.all([
       prisma.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*) as n,
@@ -34,7 +35,7 @@ export default async function PresaleCityPage({ params }: { params: Params }) {
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit,
                 COUNT(DISTINCT project_name) as projects,
                 MAX(tx_date_iso) as latest
-         FROM lvr_presale WHERE city=?`, c
+         FROM lvr_presale WHERE city='${safeC}'`
       ),
       prisma.$queryRawUnsafe<any[]>(
         `SELECT district,
@@ -44,8 +45,8 @@ export default async function PresaleCityPage({ params }: { params: Params }) {
                 COUNT(DISTINCT project_name) as projects,
                 MAX(tx_date_iso) as latest
          FROM lvr_presale
-         WHERE city=? AND district IS NOT NULL AND district != ''
-         GROUP BY district ORDER BY n DESC`, c
+         WHERE city='${safeC}' AND district IS NOT NULL AND district != ''
+         GROUP BY district ORDER BY n DESC`
       ),
     ]);
     if (!statsRows[0] || Number(statsRows[0].n) === 0) notFound();
@@ -105,6 +106,7 @@ export default async function PresaleCityPage({ params }: { params: Params }) {
           <a href="/" className="site-logo">法拍屋<span>資訊平台</span></a>
           <a href="/presale" className="nav-link" style={{ color: '#1a6b3a' }}>預售屋</a>
           <a href="/price"   className="nav-link">實價登錄</a>
+          <a href="/compare" className="nav-link" style={{ color: '#2a5298' }}>比較</a>
         </div>
       </header>
 

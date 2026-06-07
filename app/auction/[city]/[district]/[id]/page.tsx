@@ -328,14 +328,30 @@ export default async function ItemPage({
   const safeDist2 = (item.district || distDecoded).replace(/'/g, "''");
   const safeId    = id.replace(/'/g, "''");
 
-  const [relatedItems, lvrStats, lvrRecent] = await Promise.all([
+  // ── 精準估價：依建物類型 + 坪數範圍篩選 ──────────────────────────────────
+  const itemAreaSqm = item.area ? item.area * 3.30579 : null;
+  const areaLo = itemAreaSqm ? (itemAreaSqm * 0.7).toFixed(2) : null;
+  const areaHi = itemAreaSqm ? (itemAreaSqm * 1.3).toFixed(2) : null;
+
+  // land_use → lvr building_type 對應
+  const lu = (item.land_use || '').replace(/'/g, "''");
+  let btypeClause = '';
+  if (lu.includes('透天'))                          btypeClause = `AND building_type LIKE '%透天厝%'`;
+  else if (lu.includes('大樓') || lu.includes('電梯')) btypeClause = `AND building_type LIKE '%住宅大樓%'`;
+  else if (lu.includes('公寓'))                      btypeClause = `AND building_type LIKE '%公寓%'`;
+  else if (lu.includes('華廈'))                      btypeClause = `AND building_type LIKE '%華廈%'`;
+
+  const areaClause  = (areaLo && areaHi) ? `AND area_sqm BETWEEN ${areaLo} AND ${areaHi}` : '';
+  const hasFilter   = btypeClause !== '' || areaClause !== '';
+
+  const [relatedItems, lvrStats, lvrStatsMatched, lvrRecent] = await Promise.all([
     prisma.$queryRawUnsafe<any[]>(
       `SELECT id, title, address, price, auction_date, type, city, district FROM houses ` +
       `WHERE city = '${safeCity2}' AND district = '${safeDist2}' AND id != '${safeId}' ` +
       `ORDER BY CASE WHEN auction_date IS NULL OR auction_date = '' THEN 1 ELSE 0 END, auction_date DESC ` +
       `LIMIT 5`
     ),
-    // 同行政區實價登錄統計（近兩年建物交易）
+    // 舊方法：同行政區均值（作為備用）
     prisma.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n,
               AVG(CASE WHEN total_price > 0 THEN total_price END) as avg_price,
@@ -344,9 +360,24 @@ export default async function ItemPage({
        FROM lvr_land
        WHERE city = '${safeCity2}' AND district = '${safeDist2}'
          AND tx_type LIKE '%建物%'
-         AND tx_date_iso >= date('now', '-2 years')`
+         AND tx_date_iso >= to_char(CURRENT_DATE - INTERVAL '2 years', 'YYYY-MM-DD')`
     ).catch(() => []),
-    // 近期成交案例
+    // 新方法：同類型 + 相近坪數（近一年，不足退兩年）
+    hasFilter
+      ? prisma.$queryRawUnsafe<any[]>(
+          `SELECT COUNT(*) as n,
+                  AVG(CASE WHEN total_price > 0 THEN total_price END) as avg_price,
+                  AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit,
+                  MAX(tx_date_iso) as latest
+           FROM lvr_land
+           WHERE city = '${safeCity2}' AND district = '${safeDist2}'
+             AND tx_type LIKE '%建物%'
+             ${btypeClause}
+             ${areaClause}
+             AND tx_date_iso >= to_char(CURRENT_DATE - INTERVAL '1 year', 'YYYY-MM-DD')`
+        ).catch(() => [])
+      : Promise.resolve([]),
+    // 近期成交案例（條件篩選版）
     prisma.$queryRawUnsafe<any[]>(
       `SELECT address, total_price, unit_price_sqm, area_sqm, tx_date_iso,
               bedrooms, halls, floor, building_type
@@ -354,13 +385,21 @@ export default async function ItemPage({
        WHERE city = '${safeCity2}' AND district = '${safeDist2}'
          AND tx_type LIKE '%建物%'
          AND total_price > 0
+         ${btypeClause}
+         ${areaClause}
        ORDER BY tx_date_iso DESC
        LIMIT 5`
     ).catch(() => []),
   ]);
 
+  // ── 選用哪個統計（精準優先，樣本不足時退回均值）─────────────────────────
+  const matchedSt  = lvrStatsMatched[0] || null;
+  const matchedN   = Number(matchedSt?.n || 0);
+  const useMatched = matchedN >= 3;
+  const lvrSt      = useMatched ? matchedSt : (lvrStats[0] || null);
+  const lvrMethod  = useMatched ? 'matched' : 'district';  // 供 UI 標示
+
   // 實價統計計算
-  const lvrSt      = lvrStats[0] || null;
   const lvrAvgWan  = lvrSt?.avg_price ? Math.round(Number(lvrSt.avg_price) / 10000) : null;
   const lvrUnitWan = lvrSt?.avg_unit  ? (Number(lvrSt.avg_unit) * 3.30579 / 10000).toFixed(1) : null;
   // 折扣率：法拍底價 vs 實價均價
@@ -705,8 +744,12 @@ export default async function ItemPage({
                   <h2 style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '1.05rem', fontWeight: 700, color: '#2a5298', margin: 0 }}>
                     📊 周邊實際成交行情
                   </h2>
-                  <span style={{ fontSize: '.75rem', color: '#6b8cc7', fontWeight: 300 }}>
-                    {distDecoded} · 近兩年建物交易
+                  <span style={{ fontSize: '.75rem', color: '#6b8cc7', fontWeight: 300, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {lvrMethod === 'matched'
+                      ? <span style={{ background: '#e8f4e8', color: '#3a7d2c', border: '1px solid #b5dba5', padding: '.1rem .45rem', borderRadius: 2, fontSize: 10, fontWeight: 500 }}>同類型比對</span>
+                      : <span style={{ background: '#f5f5f5', color: '#aaa', border: '1px solid #e0e0e0', padding: '.1rem .45rem', borderRadius: 2, fontSize: 10, fontWeight: 400 }}>行政區均值</span>
+                    }
+                    {distDecoded} · {lvrMethod === 'matched' ? '近一年' : '近兩年'}
                   </span>
                 </div>
 

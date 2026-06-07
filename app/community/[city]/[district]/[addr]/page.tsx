@@ -21,8 +21,7 @@ export async function generateMetadata({ params }: { params: Params }) {
   try {
     const rows = await prisma.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg
-       FROM lvr_land WHERE city=? AND district=? AND address LIKE ? AND tx_type LIKE '%建物%'`,
-      c, d, `%${a}%`
+       FROM lvr_land WHERE city='${c.replace(/'/g, "''")}' AND district='${d.replace(/'/g, "''")}' AND address LIKE '%${a.replace(/'/g, "''").replace(/%/g, '\\%')}%' AND tx_type LIKE '%建物%'`
     );
     n   = Number(rows[0]?.n || 0);
     avg = rows[0]?.avg ? Math.round(Number(rows[0].avg) / 10000) : 0;
@@ -83,7 +82,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
       ),
       // 年度走勢
       prisma.$queryRawUnsafe<any[]>(
-        `SELECT substr(tx_date_iso,1,4) as year,
+        `SELECT SUBSTRING(tx_date_iso,1,4) as year,
                 COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit
@@ -155,7 +154,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
       safeRoad
         ? prisma.$queryRawUnsafe<any[]>(
             `SELECT address,
-                    CASE WHEN instr(address,'號')>0 THEN substr(address,1,instr(address,'號')) ELSE address END as addr_norm,
+                    CASE WHEN STRPOS(address,'號')>0 THEN SUBSTRING(address,1,STRPOS(address,'號')) ELSE address END as addr_norm,
                     tx_date_iso, total_price, unit_price_sqm, building_type, area_sqm
              FROM lvr_land
              WHERE city='${safeC}' AND district='${safeD}'
@@ -288,6 +287,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
           <a href="/" className="site-logo">法拍屋<span>資訊平台</span></a>
           <a href="/auction" className="nav-link">法拍屋</a>
           <a href="/price" className="nav-link" style={{ color: '#2a5298' }}>實價登錄</a>
+          <a href="/compare" className="nav-link" style={{ color: '#2a5298' }}>比較</a>
         </div>
       </header>
 

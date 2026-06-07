@@ -25,23 +25,27 @@ function statusStyle(status: string | null): React.CSSProperties {
 
 export default async function HomePage() {
   // ── 統計資料 ──────────────────────────────────────────────────────────────
-  let auctionTotal = 0, auctionRecent = 0, auctionAvg: number | null = null;
-  let lvrTotal = 0;
+  let auctionTotal = 0, auctionRecent = 0;
+  let lvrTotal = 0, presaleTotal = 0;
   let recentHouses: any[] = [];
   let cityStats: { city: string; n: number }[] = [];
+  let presaleCityStats: { city: string; n: number }[] = [];
 
   try {
-    const [aStats, lStats, recent, cities] = await Promise.all([
+    const [aStats, lStats, pStats, recent, cities, presaleCities] = await Promise.all([
       // 法拍統計
       prisma.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*) as total,
-                COUNT(CASE WHEN auction_date >= date('now', '-14 days') THEN 1 END) as recent,
-                AVG(CASE WHEN price > 0 THEN price END) as avg
+                COUNT(CASE WHEN auction_date >= to_char(CURRENT_DATE - INTERVAL '14 days', 'YYYY-MM-DD') THEN 1 END) as recent
          FROM houses`
       ),
       // 實價統計
       prisma.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*) as total FROM lvr_land`
+      ).catch(() => [{ total: 0 }]),
+      // 預售統計
+      prisma.$queryRawUnsafe<any[]>(
+        `SELECT COUNT(*) as total FROM lvr_presale`
       ).catch(() => [{ total: 0 }]),
       // 最新法拍（精選 + 最新開標）
       prisma.$queryRawUnsafe<any[]>(
@@ -59,17 +63,25 @@ export default async function HomePage() {
          WHERE city IS NOT NULL AND city != ''
          GROUP BY city ORDER BY n DESC`
       ),
+      // 縣市預售筆數
+      prisma.$queryRawUnsafe<any[]>(
+        `SELECT city, COUNT(*) as n FROM lvr_presale
+         WHERE city IS NOT NULL AND city != ''
+         GROUP BY city ORDER BY n DESC`
+      ).catch(() => []),
     ]);
 
-    auctionTotal  = Number(aStats[0]?.total  || 0);
-    auctionRecent = Number(aStats[0]?.recent || 0);
-    auctionAvg    = aStats[0]?.avg ? Math.floor(Number(aStats[0].avg) / 10000) : null;
-    lvrTotal      = Number(lStats[0]?.total || 0);
-    recentHouses  = recent;
-    cityStats     = cities.map((r: any) => ({ city: r.city, n: Number(r.n) }));
+    auctionTotal      = Number(aStats[0]?.total  || 0);
+    auctionRecent     = Number(aStats[0]?.recent || 0);
+    lvrTotal          = Number(lStats[0]?.total || 0);
+    presaleTotal      = Number(pStats[0]?.total || 0);
+    recentHouses      = recent;
+    cityStats         = cities.map((r: any) => ({ city: r.city, n: Number(r.n) }));
+    presaleCityStats  = presaleCities.map((r: any) => ({ city: r.city, n: Number(r.n) }));
   } catch { /* DB 未就緒 */ }
 
-  const cityMap = Object.fromEntries(cityStats.map(s => [s.city, s.n]));
+  const cityMap        = Object.fromEntries(cityStats.map(s => [s.city, s.n]));
+  const presaleCityMap = Object.fromEntries(presaleCityStats.map(s => [s.city, s.n]));
 
   return (
     <>
@@ -95,19 +107,22 @@ export default async function HomePage() {
         .hero-sub { font-size: clamp(.85rem,2vw,1rem); color: #888; font-weight: 300; line-height: 1.9; max-width: 560px; margin: 0 auto 2rem; }
 
         /* ── 頻道卡片 ── */
-        .channel-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; max-width: 900px; margin: 0 auto; }
+        .channel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 900px; margin: 0 auto; }
         .channel-card { display: block; padding: 1.5rem 1.75rem; text-decoration: none; color: inherit; border: 1px solid; border-radius: 2px; transition: box-shadow .18s; text-align: left; }
         .channel-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.1); }
         .channel-card.orange { background: #fff8f4; border-color: #f0c4a0; }
         .channel-card.blue   { background: #f0f5ff; border-color: #b8d0f0; }
+        .channel-card.purple { background: #f7f4ff; border-color: #c8b8e8; }
         .channel-icon { font-size: 1.6rem; margin-bottom: .6rem; }
         .channel-label { font-family: 'Noto Serif TC', serif; font-size: 1.05rem; font-weight: 700; margin-bottom: .35rem; }
         .channel-card.orange .channel-label { color: #c2632a; }
         .channel-card.blue   .channel-label { color: #2a5298; }
+        .channel-card.purple .channel-label { color: #7b5ea7; }
         .channel-count { font-size: .78rem; color: #aaa; font-weight: 300; }
         .channel-cta { font-size: .78rem; font-weight: 500; margin-top: .75rem; }
         .channel-card.orange .channel-cta { color: #c2632a; }
         .channel-card.blue   .channel-cta { color: #2a5298; }
+        .channel-card.purple .channel-cta { color: #7b5ea7; }
 
         /* ── 全站統計 ── */
         .stats-strip { background: #fff; border-top: 1px solid #ececec; border-bottom: 1px solid #ececec; }
@@ -160,7 +175,6 @@ export default async function HomePage() {
 
         @media (max-width: 640px) {
           .channel-grid { grid-template-columns: 1fr 1fr; }
-          .channel-grid > *:last-child { grid-column: 1 / -1; }
           .stats-inner  { grid-template-columns: 1fr 1fr; }
           .stat-cell:nth-child(2) { border-right: none; }
           .stat-cell:nth-child(3) { border-right: 1px solid #f0f0f0; }
@@ -173,21 +187,21 @@ export default async function HomePage() {
         '@graph': [
           {
             '@type': 'WebSite',
-            '@id': `${process.env.NEXT_PUBLIC_BASE_URL || 'https://example.com'}/#website`,
-            url: process.env.NEXT_PUBLIC_BASE_URL || 'https://example.com',
+            '@id': `${process.env.NEXT_PUBLIC_BASE_URL || 'https://402law.house'}/#website`,
+            url: process.env.NEXT_PUBLIC_BASE_URL || 'https://402law.house',
             name: '法拍屋・實價登錄・預售屋 | 全台房地產資訊平台',
             inLanguage: 'zh-TW',
             potentialAction: {
               '@type': 'SearchAction',
-              target: { '@type': 'EntryPoint', urlTemplate: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://example.com'}/community/search?q={search_term_string}` },
+              target: { '@type': 'EntryPoint', urlTemplate: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://402law.house'}/community/search?q={search_term_string}` },
               'query-input': 'required name=search_term_string',
             },
           },
           {
             '@type': 'Organization',
-            '@id': `${process.env.NEXT_PUBLIC_BASE_URL || 'https://example.com'}/#organization`,
+            '@id': `${process.env.NEXT_PUBLIC_BASE_URL || 'https://402law.house'}/#organization`,
             name: '法拍屋資訊平台',
-            url: process.env.NEXT_PUBLIC_BASE_URL || 'https://example.com',
+            url: process.env.NEXT_PUBLIC_BASE_URL || 'https://402law.house',
             description: '全台最完整的法拍屋查詢、實價登錄與預售屋成交資料庫。',
           },
         ],
@@ -197,19 +211,22 @@ export default async function HomePage() {
       <header className="site-bar">
         <div className="site-bar-inner">
           <a href="/" className="site-logo">法拍屋<span>資訊平台</span></a>
-          <a href="/auction" className="nav-link">法拍屋</a>
-          <a href="/price"   className="nav-link blue">實價登錄</a>
-          <a href="/presale" className="nav-link" style={{ color: '#1a6b3a' }}>預售屋</a>
+          <a href="/auction"  className="nav-link">法拍屋</a>
+          <a href="/price"    className="nav-link blue">實價登錄</a>
+          <a href="/presale"  className="nav-link" style={{ color: '#1a6b3a' }}>預售屋</a>
+          <a href="/land-readjustment"     className="nav-link" style={{ color: '#7b5ea7' }}>重劃區</a>
+          <a href="/special-properties"  className="nav-link" style={{ color: '#c2632a' }}>特殊物件</a>
+          <a href="/compare"             className="nav-link" style={{ color: '#2a5298' }}>比較</a>
         </div>
       </header>
 
       {/* ── Hero ── */}
       <div className="hero">
         <p className="hero-eyebrow">TAIWAN REAL ESTATE · 全台房地產資訊平台</p>
-        <h1 className="hero-h1">法拍屋 · 實價登錄<br />一站查清楚</h1>
+        <h1 className="hero-h1">法拍屋 · 實價登錄 · 預售屋<br />全台房地產資料一站查</h1>
         <p className="hero-sub">
-          最新法拍屋開標資訊、歷史底價走勢，對照周邊實際成交行情，
-          讓每一個投標決策都有數據支撐。
+          法拍底價走勢、周邊實際成交行情、建案預售記錄，
+          三大資料庫整合查詢，讓每一個房產決策都有數據支撐。
         </p>
 
         {/* 兩大頻道入口 */}
@@ -232,6 +249,12 @@ export default async function HomePage() {
             <div className="channel-count">全台建案成交記錄</div>
             <div className="channel-cta" style={{ color: '#1a6b3a' }}>查詢建案行情 →</div>
           </a>
+          <a href="/land-readjustment" className="channel-card purple">
+            <div className="channel-icon">🗺️</div>
+            <div className="channel-label">重劃區</div>
+            <div className="channel-count">台中市 1–16 期完整資料</div>
+            <div className="channel-cta">查看法拍・預售・行情 →</div>
+          </a>
         </div>
 
         {/* 地址搜尋 */}
@@ -253,12 +276,12 @@ export default async function HomePage() {
             <div className="stat-label">近兩週新增</div>
           </div>
           <div className="stat-cell">
-            <div className="stat-val">{auctionAvg ? `${auctionAvg.toLocaleString()}萬` : '—'}</div>
-            <div className="stat-label">法拍均價</div>
+            <div className="stat-val" style={{ color: '#2a5298' }}>{lvrTotal > 0 ? (lvrTotal / 10000).toFixed(0) + '萬+' : '—'}</div>
+            <div className="stat-label">實價成交筆數</div>
           </div>
           <div className="stat-cell">
-            <div className="stat-val" style={{ color: '#2a5298' }}>{lvrTotal > 0 ? lvrTotal.toLocaleString() : '—'}</div>
-            <div className="stat-label">實價成交筆數</div>
+            <div className="stat-val" style={{ color: '#1a6b3a' }}>{presaleTotal > 0 ? presaleTotal.toLocaleString() : '—'}</div>
+            <div className="stat-label">預售成交筆數</div>
           </div>
         </div>
       </div>
@@ -333,6 +356,53 @@ export default async function HomePage() {
             {[...SIX_METROS, ...OTHER_CITIES].map(city => (
               <a key={city} href={`/price/${encodeURIComponent(city)}`} className="city-btn city-btn-blue">
                 {city}
+              </a>
+            ))}
+          </div>
+        </section>
+
+        {/* ── 縣市快速入口：預售屋 ── */}
+        <section>
+          <div className="sec-head" style={{ color: '#1a6b3a', borderLeftColor: '#1a6b3a', background: '#f0fdf4' }}>
+            依縣市查預售建案
+            <a href="/presale" style={{ color: '#1a6b3a' }}>查看全台 →</a>
+          </div>
+          <div className="city-grid">
+            {[...SIX_METROS, ...OTHER_CITIES].map(city => (
+              <a key={city} href={`/presale/${encodeURIComponent(city)}`}
+                className="city-btn"
+                style={{ borderColor: presaleCityMap[city] ? '#a8d5b5' : undefined, color: presaleCityMap[city] ? '#1a6b3a' : '#ccc' }}>
+                {city}
+                {presaleCityMap[city] ? <span className="n" style={{ color: '#a8d5b5' }}>{presaleCityMap[city].toLocaleString()}</span> : null}
+              </a>
+            ))}
+          </div>
+        </section>
+
+        {/* ── 台中重劃區快速入口 ── */}
+        <section>
+          <div className="sec-head" style={{ color: '#7b5ea7', borderLeftColor: '#7b5ea7', background: '#f7f4ff' }}>
+            台中市重劃區
+            <a href="/land-readjustment/台中" style={{ color: '#7b5ea7' }}>查看全部 16 期 →</a>
+          </div>
+          <div className="city-grid">
+            {[
+              { slug: '7期',  name: '惠來・西屯/南屯' },
+              { slug: '14期', name: '美和庄・北屯' },
+              { slug: '10期', name: '軍功水景・北屯' },
+              { slug: '11期', name: '四張犁・北屯' },
+              { slug: '13期', name: '大慶・南區/南屯' },
+              { slug: '12期', name: '福星・西屯' },
+              { slug: '5期',  name: '大墩・南屯/西屯' },
+              { slug: '8期',  name: '豐樂・南屯' },
+              { slug: '15期', name: '大里杙・大里' },
+              { slug: '4期',  name: '中正東山・北區' },
+            ].map(({ slug, name }) => (
+              <a key={slug} href={`/land-readjustment/台中/${encodeURIComponent(slug)}`}
+                className="city-btn"
+                style={{ borderColor: '#c8b8e8', color: '#7b5ea7' }}>
+                台中{slug}
+                <span className="n" style={{ color: '#c8b8e8', fontSize: '.65rem' }}>{name.split('・')[0]}</span>
               </a>
             ))}
           </div>

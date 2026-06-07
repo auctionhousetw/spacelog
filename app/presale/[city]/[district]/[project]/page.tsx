@@ -11,6 +11,32 @@ type Params = Promise<{ city: string; district: string; project: string }>;
 const sqmToPing           = (sqm: number) => sqm / 3.30579;
 const unitSqmToWanPerPing = (u: number)   => (u * 3.30579) / 10000;
 
+// ── 樓層數字解析（中文數字 + 阿拉伯數字均支援） ──────────────────────────────
+function parseFloorNum(s: string | null): number {
+  if (!s) return 0;
+  const t = s.replace(/[層樓Ff]/g, '').trim();
+  const am = t.match(/^(-?\d+)/);
+  if (am) return parseInt(am[1]);
+  const cn: Record<string, number> = {
+    '一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10,
+  };
+  let r = 0, cur = 0;
+  for (const ch of t) {
+    const v = cn[ch];
+    if (v === undefined) continue;
+    if (v === 10) { r += (cur === 0 ? 1 : cur) * 10; cur = 0; }
+    else cur = v;
+  }
+  return r + cur;
+}
+
+// ── 熱圖色階：淺綠（低價）→ 深綠（高價） ────────────────────────────────────
+function gridColor(price: number, min: number, max: number): string {
+  if (!price || price <= 0 || max <= 0) return '#f5f5f0';
+  const pct = max > min ? Math.max(0, Math.min(1, (price - min) / (max - min))) : 0.5;
+  return `rgb(${Math.round(200 - pct * 174)},${Math.round(240 - pct * 133)},${Math.round(212 - pct * 154)})`;
+}
+
 export async function generateMetadata({ params }: { params: Params }) {
   const { city, district, project } = await params;
   const c = decodeURIComponent(city);
@@ -20,7 +46,7 @@ export async function generateMetadata({ params }: { params: Params }) {
   try {
     const rows = await prisma.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg
-       FROM lvr_presale WHERE city=? AND district=? AND project_name=?`, c, d, p
+       FROM lvr_presale WHERE city='${c.replace(/'/g, "''")}' AND district='${d.replace(/'/g, "''")}' AND project_name='${p.replace(/'/g, "''")}'`
     );
     n   = Number(rows[0]?.n || 0);
     avg = rows[0]?.avg ? Math.round(Number(rows[0].avg) / 10000) : 0;
@@ -44,9 +70,10 @@ export default async function PresaleProjectPage({ params }: { params: Params })
   let records: any[] = [], stats: any = null;
   let layoutRows: any[] = [], floorRows: any[] = [], areaBuckets: any[] = [], yearTrend: any[] = [];
   let nearbyProjects: any[] = [], districtPrice: any = null, nearbyAuctions: any[] = [];
+  let gridRaw: any[] = [];
 
   try {
-    const [recs, statsRows, layouts, floors, areas, trends, nbProjects, distPrice, nbAuctions] = await Promise.all([
+    const [recs, statsRows, layouts, floors, areas, trends, nbProjects, distPrice, nbAuctions, rawGrid] = await Promise.all([
       // 所有成交記錄
       prisma.$queryRawUnsafe<any[]>(
         `SELECT * FROM lvr_presale
@@ -104,14 +131,14 @@ export default async function PresaleProjectPage({ params }: { params: Params })
       ),
       // 年度走勢
       prisma.$queryRawUnsafe<any[]>(
-        `SELECT substr(tx_date_iso,1,4) as year,
+        `SELECT SUBSTRING(tx_date_iso,1,4) as year,
                 COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit
          FROM lvr_presale
          WHERE city='${safeC}' AND district='${safeD}' AND project_name='${safeP}'
            AND total_price > 0
-         GROUP BY year ORDER BY year`
+         GROUP BY SUBSTRING(tx_date_iso, 1, 4) ORDER BY 1`
       ),
       // 同區其他預售建案
       prisma.$queryRawUnsafe<any[]>(
@@ -130,7 +157,7 @@ export default async function PresaleProjectPage({ params }: { params: Params })
                 MAX(tx_date_iso) as latest
          FROM lvr_land
          WHERE city='${safeC}' AND district='${safeD}'
-           AND tx_date_iso >= date('now','-1 year') AND total_price > 0`
+           AND tx_date_iso >= to_char(CURRENT_DATE - INTERVAL '1 year', 'YYYY-MM-DD') AND total_price > 0`
       ),
       // 同區法拍物件
       prisma.$queryRawUnsafe<any[]>(
@@ -138,6 +165,18 @@ export default async function PresaleProjectPage({ params }: { params: Params })
          FROM houses
          WHERE city='${safeC}' AND district='${safeD}'
          ORDER BY auction_date DESC LIMIT 6`
+      ),
+      // 棟別樓層戶別熱圖資料（全量聚合）
+      prisma.$queryRawUnsafe<any[]>(
+        `SELECT floor, building_unit, COUNT(*) as n,
+                AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,
+                AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit,
+                MAX(bedrooms) as bedrooms
+         FROM lvr_presale
+         WHERE city='${safeC}' AND district='${safeD}' AND project_name='${safeP}'
+           AND floor IS NOT NULL AND floor != '' AND total_price > 0
+         GROUP BY floor, building_unit
+         ORDER BY floor, building_unit`
       ),
     ]);
 
@@ -151,6 +190,7 @@ export default async function PresaleProjectPage({ params }: { params: Params })
     nearbyProjects = nbProjects;
     districtPrice  = distPrice[0] ?? null;
     nearbyAuctions = nbAuctions;
+    gridRaw        = rawGrid;
   } catch (e: any) {
     if (e?.message?.includes('no such table')) notFound();
     throw e;
@@ -163,6 +203,33 @@ export default async function PresaleProjectPage({ params }: { params: Params })
   const maxWan  = stats.max_p ? Math.round(Number(stats.max_p) / 10000) : null;
   const maxAvg  = yearTrend.length ? Math.max(...yearTrend.map((r: any) => Number(r.avg_price || 0))) : 1;
   const maxFloorAvg = floorRows.length ? Math.max(...floorRows.map((r: any) => Number(r.avg_price || 0))) : 1;
+
+  // ── 熱圖資料處理 ──────────────────────────────────────────────────────────
+  type GridCell = { floorNum: number; unit: string; n: number; avgPrice: number; avgUnit: number; bedrooms: number };
+  const gridCells: GridCell[] = gridRaw.map((r: any) => ({
+    floorNum: parseFloorNum(r.floor),
+    unit: String(r.building_unit || ''),
+    n: Number(r.n),
+    avgPrice: r.avg_price ? Number(r.avg_price) : 0,
+    avgUnit: r.avg_unit ? Number(r.avg_unit) : 0,
+    bedrooms: r.bedrooms ? Number(r.bedrooms) : 0,
+  }));
+
+  const distinctUnits = new Set(gridCells.filter(c => c.unit).map(c => c.unit));
+  const showGrid = distinctUnits.size >= 3 && gridCells.length >= 6;
+
+  const gridFloors = showGrid
+    ? [...new Set(gridCells.map(c => c.floorNum))].filter(n => n > 0).sort((a, b) => b - a).slice(0, 40)
+    : [];
+  const gridUnits = showGrid
+    ? [...distinctUnits].sort().slice(0, 22)
+    : [];
+  const cellMap = new Map<string, GridCell>();
+  for (const c of gridCells) cellMap.set(`${c.floorNum}_${c.unit}`, c);
+
+  const allGridPrices = gridCells.map(c => c.avgPrice).filter(p => p > 0);
+  const priceMin = allGridPrices.length ? Math.min(...allGridPrices) : 0;
+  const priceMax = allGridPrices.length ? Math.max(...allGridPrices) : 1;
 
   return (
     <>
@@ -195,6 +262,16 @@ export default async function PresaleProjectPage({ params }: { params: Params })
         .row-price { padding: .7rem 1rem; border-left: 1px solid #eaf5ec; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; min-width: 80px; flex-shrink: 0; }
         .price-big { font-family: 'Noto Serif TC', serif; font-size: 1.1rem; font-weight: 700; color: #1a6b3a; }
         .price-big small { font-size: .6rem; margin-left: 1px; }
+
+        /* 熱圖 */
+        .grid-wrap { overflow-x: auto; border: 1px solid #d1e8d8; background: #fff; margin-bottom: 1px; }
+        .grid-table { border-collapse: collapse; font-size: 9px; }
+        .grid-th-corner { position: sticky; left: 0; z-index: 3; background: #f0fdf4; border-bottom: 2px solid #d1e8d8; border-right: 2px solid #d1e8d8; padding: 5px 7px; color: #aaa; font-weight: 400; text-align: center; min-width: 40px; }
+        .grid-th-unit { background: #f0fdf4; border-bottom: 2px solid #d1e8d8; border-right: 1px solid #d0e8d8; padding: 5px 4px; color: #555; font-weight: 500; text-align: center; min-width: 38px; max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .grid-td-floor { position: sticky; left: 0; z-index: 2; background: #f0fdf4; border-right: 2px solid #d1e8d8; border-bottom: 1px solid #e4f0e8; padding: 2px 6px; color: #555; font-weight: 500; text-align: right; white-space: nowrap; }
+        .grid-td-cell { border-right: 1px solid rgba(160,210,170,.3); border-bottom: 1px solid rgba(160,210,170,.3); text-align: center; height: 26px; vertical-align: middle; transition: opacity .1s; cursor: default; }
+        .grid-td-cell:hover { outline: 2px solid #1a6b3a; outline-offset: -1px; z-index: 1; position: relative; }
+
         @media(max-width:580px){ .stat4 { grid-template-columns: 1fr 1fr; } .row-price { display: none; } }
       `}</style>
 
@@ -223,6 +300,7 @@ export default async function PresaleProjectPage({ params }: { params: Params })
         <div className="site-bar-inner">
           <a href="/" className="site-logo">法拍屋<span>資訊平台</span></a>
           <a href="/presale" className="nav-link" style={{ color: '#1a6b3a' }}>預售屋</a>
+          <a href="/compare" className="nav-link" style={{ color: '#2a5298' }}>比較</a>
         </div>
       </header>
 
@@ -290,6 +368,78 @@ export default async function PresaleProjectPage({ params }: { params: Params })
           </div>
         )}
 
+        {/* ── 棟別・樓層・戶別 成交熱圖 ───────────────────────────────────── */}
+        {showGrid && gridFloors.length >= 2 && (
+          <>
+            <div className="sec-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>棟別・樓層・戶別 成交熱圖</span>
+              <span style={{ fontSize: '.68rem', color: '#1a6b3a', fontWeight: 300, fontFamily: "'Noto Sans TC', sans-serif" }}>
+                {gridFloors.length} 樓層 × {gridUnits.length} 戶別・數字為萬元均價
+              </span>
+            </div>
+            <div className="grid-wrap">
+              <table className="grid-table">
+                <colgroup>
+                  <col style={{ width: 40 }} />
+                  {gridUnits.map(u => <col key={u} style={{ width: 42 }} />)}
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th className="grid-th-corner">樓↑</th>
+                    {gridUnits.map(u => (
+                      <th key={u} className="grid-th-unit" title={u}>{u}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {gridFloors.map(floorNum => (
+                    <tr key={floorNum}>
+                      <td className="grid-td-floor">{floorNum}F</td>
+                      {gridUnits.map(u => {
+                        const cell = cellMap.get(`${floorNum}_${u}`);
+                        const bg   = gridColor(cell?.avgPrice ?? 0, priceMin, priceMax);
+                        const avgW = cell ? Math.round(cell.avgPrice / 10000) : null;
+                        const unitW = cell?.avgUnit ? unitSqmToWanPerPing(cell.avgUnit).toFixed(1) : null;
+                        const isDark = cell ? (cell.avgPrice - priceMin) / (priceMax - priceMin + 1) > 0.62 : false;
+                        const tip = cell
+                          ? `${floorNum}F ${u}\n成交均價：${avgW} 萬${cell.bedrooms ? `\n格局：${cell.bedrooms}房` : ''}${unitW ? `\n單坪：${unitW} 萬/坪` : ''}\n共 ${cell.n} 筆成交`
+                          : `${floorNum}F ${u}：無成交記錄`;
+                        return (
+                          <td key={u} className="grid-td-cell" title={tip}
+                            style={{ background: bg }}>
+                            {avgW !== null && (
+                              <span style={{ fontSize: 8.5, fontWeight: 600, color: isDark ? '#e8f5ec' : '#1a3a2a', userSelect: 'none' }}>
+                                {avgW}
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* 圖例 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '.3rem 0 .85rem', fontSize: 9, color: '#aaa', flexWrap: 'wrap' }}>
+              <span>數字 = 成交均價（萬）</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                低
+                {[0.05, 0.25, 0.5, 0.75, 0.95].map(pct => (
+                  <span key={pct} style={{
+                    width: 18, height: 11,
+                    background: gridColor(priceMin + pct * (priceMax - priceMin), priceMin, priceMax),
+                    borderRadius: 2, display: 'inline-block', border: '1px solid rgba(0,0,0,.06)',
+                  }} />
+                ))}
+                高
+              </span>
+              <span style={{ color: '#ccc' }}>灰白＝無成交・hover 查詳情</span>
+              {gridFloors.length === 40 && <span style={{ color: '#f0a070' }}>（僅顯示最高 40 層）</span>}
+            </div>
+          </>
+        )}
+
         {/* 格局分布 */}
         {layoutRows.length > 0 && (
           <>
@@ -338,10 +488,10 @@ export default async function PresaleProjectPage({ params }: { params: Params })
           </>
         )}
 
-        {/* 樓層均價 */}
+        {/* 樓層均價（無熱圖時顯示，有熱圖時此條更精簡） */}
         {floorRows.length >= 2 && (
           <>
-            <div className="sec-head">各樓層成交均價</div>
+            <div className="sec-head">各樓層成交均價{showGrid ? '（條列）' : ''}</div>
             <div style={{ background: '#fff', border: '1px solid #d1e8d8', padding: '.75rem 1rem', marginBottom: 1 }}>
               {floorRows.map((r: any, i: number) => {
                 const avgW  = r.avg_price ? Math.round(Number(r.avg_price) / 10000) : null;

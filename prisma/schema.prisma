@@ -131,3 +131,42 @@ model lvr_presale {
   @@index([project_name],     map: "idx_presale_project")
   @@index([city, district],   map: "idx_presale_city_dist")
 }
+
+model inherited_land {
+  id                 String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  city               String?
+  district           String?
+  land_office        String?
+  announcement_start String?
+  announcement_end   String?
+  application_end    String?
+  source_url         String?
+  scraped_date       String?
+
+  @@index([city],     map: "idx_inherit_city")
+  @@index([district], map: "idx_inherit_dist")
+}
+
+model rezoning_case {
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  city            String?
+  case_name       String?
+  status          String?
+  content_summary String?
+  source_url      String?
+  scraped_date    String?
+
+  @@index([city], map: "idx_rezoning_city")
+  @@unique([city, case_name], map: "uq_rezoning_case")
+}
+
+model lvr_land_section {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tx_id        String
+  segment_name String?
+  lot_number   String?
+  area_sqm     Float?
+
+  @@index([tx_id],        map: "idx_section_tx")
+  @@index([segment_name], map: "idx_section_seg")
+}

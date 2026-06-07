@@ -9,43 +9,71 @@ if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
 type SearchParams = Promise<{ q?: string }>;
 
 export function generateMetadata() {
-  return { title: '地址搜尋 | 查歷年成交記錄', robots: { index: false } };
+  return { title: '地址 / 建案搜尋 | 查歷年成交記錄', robots: { index: false } };
 }
 
 export default async function CommunitySearchPage({ searchParams }: { searchParams: SearchParams }) {
   const { q = '' } = await searchParams;
   const keyword = q.trim();
 
-  let results: { city: string; district: string; addr: string; n: number }[] = [];
+  let addrResults: { city: string; district: string; addr: string; n: number }[] = [];
+  let projectResults: { city: string; district: string; project_name: string; n: number; avg_price: number | null }[] = [];
 
   if (keyword) {
     try {
-      results = await prisma.$queryRawUnsafe<{ city: string; district: string; addr: string; n: bigint }[]>(
-        `SELECT city, district,
-                CASE WHEN instr(address,'號') > 0
-                     THEN substr(address,1,instr(address,'號'))
-                     ELSE address END as addr,
-                COUNT(*) as n
-         FROM lvr_land
-         WHERE address LIKE ? AND tx_type LIKE '%建物%' AND total_price > 0
-           AND city IS NOT NULL AND district IS NOT NULL
-           AND address IS NOT NULL AND address != ''
-         GROUP BY city, district, addr
-         HAVING addr IS NOT NULL AND addr != ''
-         ORDER BY n DESC
-         LIMIT 30`,
-        `%${keyword}%`
-      ).then(rows => rows.map(r => ({ ...r, n: Number(r.n) })));
+      const [addrRows, projectRows] = await Promise.all([
+        prisma.$queryRawUnsafe<{ city: string; district: string; addr: string; n: bigint }[]>(
+          `SELECT city, district,
+                  CASE WHEN STRPOS(address,'號') > 0
+                       THEN SUBSTRING(address,1,STRPOS(address,'號'))
+                       ELSE address END as addr,
+                  COUNT(*) as n
+           FROM lvr_land
+           WHERE address LIKE $1 AND tx_type LIKE '%建物%' AND total_price > 0
+             AND city IS NOT NULL AND district IS NOT NULL
+             AND address IS NOT NULL AND address != ''
+           GROUP BY city, district,
+                    CASE WHEN STRPOS(address,'號') > 0
+                         THEN SUBSTRING(address,1,STRPOS(address,'號'))
+                         ELSE address END
+           ORDER BY n DESC
+           LIMIT 20`,
+          `%${keyword}%`
+        ).then(rows => rows.map(r => ({ ...r, n: Number(r.n) }))),
 
-      // 完全匹配或只有一筆時直接跳轉
-      if (results.length === 1) {
-        const r = results[0];
-        redirect(`/community/${encodeURIComponent(r.city)}/${encodeURIComponent(r.district)}/${encodeURIComponent(r.addr)}`);
+        prisma.$queryRawUnsafe<{ city: string; district: string; project_name: string; n: bigint; avg_price: number | null }[]>(
+          `SELECT city, district, project_name, COUNT(*) as n,
+                  AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price
+           FROM lvr_presale
+           WHERE project_name LIKE $1
+             AND project_name IS NOT NULL AND project_name != ''
+             AND city IS NOT NULL AND district IS NOT NULL
+           GROUP BY city, district, project_name
+           ORDER BY n DESC
+           LIMIT 15`,
+          `%${keyword}%`
+        ).then(rows => rows.map(r => ({ ...r, n: Number(r.n), avg_price: r.avg_price ? Number(r.avg_price) : null }))),
+      ]);
+
+      addrResults    = addrRows;
+      projectResults = projectRows;
+
+      // 唯一結果時直接跳轉
+      const totalResults = addrResults.length + projectResults.length;
+      if (totalResults === 1) {
+        if (addrResults.length === 1) {
+          const r = addrResults[0];
+          redirect(`/community/${encodeURIComponent(r.city)}/${encodeURIComponent(r.district)}/${encodeURIComponent(r.addr)}`);
+        }
+        if (projectResults.length === 1) {
+          const r = projectResults[0];
+          redirect(`/presale/${encodeURIComponent(r.city)}/${encodeURIComponent(r.district)}/${encodeURIComponent(r.project_name)}`);
+        }
       }
     } catch { /* DB 未就緒 */ }
   }
 
-  const BASE = process.env.NEXT_PUBLIC_BASE_URL || '';
+  const hasResults = addrResults.length > 0 || projectResults.length > 0;
 
   return (
     <>
@@ -62,15 +90,23 @@ export default async function CommunitySearchPage({ searchParams }: { searchPara
         .search-bar { display: flex; gap: 0; margin-bottom: 1.5rem; box-shadow: 0 2px 12px rgba(0,0,0,.08); border-radius: 2px; }
         .search-bar input { flex: 1; padding: .75rem 1rem; font-size: .9rem; border: 1px solid #ddd; border-right: none; border-radius: 2px 0 0 2px; outline: none; font-family: inherit; }
         .search-bar button { padding: .75rem 1.25rem; background: #2a5298; color: #fff; border: none; border-radius: 0 2px 2px 0; font-family: inherit; font-size: .88rem; font-weight: 500; cursor: pointer; white-space: nowrap; }
-        .sec-head { font-family: 'Noto Serif TC', serif; font-size: 1rem; font-weight: 700; color: #2a5298; border-left: 4px solid #2a5298; padding: .6rem 1rem; background: #f0f5ff; margin-bottom: 1rem; }
-        .result-list { display: flex; flex-direction: column; gap: 6px; }
-        .result-item { background: #fff; border: 1px solid #ececec; padding: .85rem 1.1rem; text-decoration: none; color: inherit; display: flex; align-items: center; justify-content: space-between; transition: box-shadow .15s; }
-        .result-item:hover { box-shadow: 0 2px 10px rgba(0,0,0,.07); border-color: #b8d0f0; }
-        .result-addr { font-size: .9rem; color: #333; }
-        .result-addr em { color: #2a5298; font-style: normal; font-weight: 500; }
-        .result-meta { font-size: .75rem; color: #aaa; margin-top: .2rem; }
-        .result-n { font-size: .78rem; color: #2a5298; font-weight: 500; white-space: nowrap; margin-left: 1rem; }
+        .sec-head { font-family: 'Noto Serif TC', serif; font-size: .92rem; font-weight: 700; color: #2a5298; border-left: 4px solid #2a5298; padding: .55rem 1rem; background: #f0f5ff; margin: 1.25rem 0 .65rem; }
+        .sec-head.green { color: #1a6b3a; border-left-color: #1a6b3a; background: #f0fdf4; }
+        .result-list { display: flex; flex-direction: column; gap: 4px; }
+        .result-item { background: #fff; border: 1px solid #ececec; padding: .85rem 1.1rem; text-decoration: none; color: inherit; display: flex; align-items: center; justify-content: space-between; }
+        .result-item:hover { border-color: #b8d0f0; background: #fafbff; }
+        .result-item.green:hover { border-color: #a8dab8; background: #f8fef8; }
+        .result-addr { font-size: .88rem; color: #333; }
+        .result-addr em { color: #2a5298; font-style: normal; font-weight: 600; }
+        .result-addr em.green { color: #1a6b3a; }
+        .result-meta { font-size: .72rem; color: #aaa; margin-top: .2rem; }
+        .result-right { text-align: right; margin-left: 1rem; flex-shrink: 0; }
+        .result-n { font-size: .78rem; color: #2a5298; font-weight: 600; }
+        .result-n.green { color: #1a6b3a; }
+        .result-avg { font-size: .68rem; color: #bbb; margin-top: .15rem; }
         .empty { padding: 2.5rem; text-align: center; color: #aaa; font-size: .9rem; background: #fff; border: 1px solid #ececec; }
+        .hint { font-size: .78rem; color: #aaa; margin-bottom: 1.5rem; line-height: 1.8; }
+        .hint strong { color: #555; }
       `}</style>
 
       <header className="site-bar">
@@ -78,47 +114,90 @@ export default async function CommunitySearchPage({ searchParams }: { searchPara
           <a href="/" className="site-logo">法拍屋<span>資訊平台</span></a>
           <a href="/auction" className="nav-link">法拍屋</a>
           <a href="/price" className="nav-link">實價登錄</a>
+          <a href="/presale" className="nav-link">預售屋</a>
+          <a href="/compare" className="nav-link" style={{ color: '#2a5298' }}>比較</a>
         </div>
       </header>
 
       <div className="wrap">
         <form method="get" action="/community/search" className="search-bar">
-          <input name="q" defaultValue={keyword} placeholder="輸入地址查歷年成交，如：台北市大安區仁愛路一段" />
-          <button type="submit">查歷年成交</button>
+          <input name="q" defaultValue={keyword} placeholder="輸入地址或建案名稱，如：仁愛路、都廳大院" autoFocus />
+          <button type="submit">搜尋</button>
         </form>
 
         {!keyword ? (
-          <div className="empty">請輸入地址關鍵字查詢</div>
-        ) : results.length === 0 ? (
+          <>
+            <p className="hint">
+              支援兩種搜尋方式：<br />
+              <strong>地址搜尋</strong>：輸入路名或門牌號，查詢該地址的歷年實價成交記錄<br />
+              <strong>建案名稱</strong>：輸入建案/社區名稱，查詢預售成交記錄與行情
+            </p>
+            <div className="empty">請輸入地址或建案名稱查詢</div>
+          </>
+        ) : !hasResults ? (
           <div className="empty">
-            找不到「{keyword}」的成交記錄。<br />
+            找不到「{keyword}」的相關記錄。<br />
             <span style={{ fontSize: '.82rem', marginTop: '.5rem', display: 'block' }}>
-              可嘗試縮短關鍵字，例如只輸入路名。
+              可嘗試縮短關鍵字，例如只輸入路名或建案名稱部分字。
             </span>
           </div>
         ) : (
           <>
-            <div className="sec-head">
-              「{keyword}」共找到 {results.length} 筆地址
-            </div>
-            <div className="result-list">
-              {results.map((r, i) => {
-                const href = `/community/${encodeURIComponent(r.city)}/${encodeURIComponent(r.district)}/${encodeURIComponent(r.addr)}`;
-                const addrHl = r.addr.replace(
-                  new RegExp(keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-                  `<em>${keyword}</em>`
-                );
-                return (
-                  <a key={i} href={href} className="result-item">
-                    <div>
-                      <div className="result-addr" dangerouslySetInnerHTML={{ __html: `${r.city}${r.district}${addrHl}` }} />
-                      <div className="result-meta">{r.city} · {r.district}</div>
-                    </div>
-                    <div className="result-n">{r.n} 筆成交</div>
-                  </a>
-                );
-              })}
-            </div>
+            {/* 建案名稱結果 */}
+            {projectResults.length > 0 && (
+              <>
+                <div className="sec-head green">建案名稱（{projectResults.length} 筆）</div>
+                <div className="result-list">
+                  {projectResults.map((r, i) => {
+                    const href = `/presale/${encodeURIComponent(r.city)}/${encodeURIComponent(r.district)}/${encodeURIComponent(r.project_name)}`;
+                    const nameHl = r.project_name.replace(
+                      new RegExp(keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+                      `<em class="green">${keyword}</em>`
+                    );
+                    const avgWan = r.avg_price ? Math.round(r.avg_price / 10000) : null;
+                    return (
+                      <a key={i} href={href} className="result-item green">
+                        <div>
+                          <div className="result-addr" dangerouslySetInnerHTML={{ __html: nameHl }} />
+                          <div className="result-meta">{r.city} · {r.district} · 預售成交</div>
+                        </div>
+                        <div className="result-right">
+                          <div className="result-n green">{r.n} 筆</div>
+                          {avgWan && <div className="result-avg">均價 {avgWan.toLocaleString()} 萬</div>}
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* 地址結果 */}
+            {addrResults.length > 0 && (
+              <>
+                <div className="sec-head">地址（{addrResults.length} 筆）</div>
+                <div className="result-list">
+                  {addrResults.map((r, i) => {
+                    const href = `/community/${encodeURIComponent(r.city)}/${encodeURIComponent(r.district)}/${encodeURIComponent(r.addr)}`;
+                    const addrHl = r.addr.replace(
+                      new RegExp(keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+                      `<em>${keyword}</em>`
+                    );
+                    return (
+                      <a key={i} href={href} className="result-item">
+                        <div>
+                          <div className="result-addr" dangerouslySetInnerHTML={{ __html: `${r.city}${r.district}${addrHl}` }} />
+                          <div className="result-meta">{r.city} · {r.district} · 實價成屋</div>
+                        </div>
+                        <div className="result-right">
+                          <div className="result-n">{r.n} 筆</div>
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </>
         )}
       </div>

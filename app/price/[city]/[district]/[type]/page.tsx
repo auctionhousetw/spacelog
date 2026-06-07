@@ -22,8 +22,7 @@ export async function generateMetadata({ params }: { params: Params }) {
   try {
     const rows = await prisma.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg
-       FROM lvr_land WHERE city=? AND district=? AND building_type=? AND tx_type LIKE '%建物%'`,
-      c, d, t
+       FROM lvr_land WHERE city='${c.replace(/'/g, "''")}' AND district='${d.replace(/'/g, "''")}' AND building_type='${t.replace(/'/g, "''")}' AND tx_type LIKE '%建物%'`
     );
     avg = rows[0]?.avg ? Math.round(Number(rows[0].avg) / 10000) : 0;
     n   = Number(rows[0]?.n || 0);
@@ -98,8 +97,7 @@ export default async function PriceTypePage({
   try {
     const [fetched, countRows, statsRows, trendRows, otherRows] = await Promise.all([
       prisma.$queryRawUnsafe<any[]>(
-        `SELECT * FROM lvr_land WHERE ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
-        pageSize, (page - 1) * pageSize,
+        `SELECT * FROM lvr_land WHERE ${where} ORDER BY ${orderBy} LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`
       ),
       prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*) as n FROM lvr_land WHERE ${where}`),
       prisma.$queryRawUnsafe<any[]>(
@@ -113,14 +111,14 @@ export default async function PriceTypePage({
       ),
       // 年度趨勢
       prisma.$queryRawUnsafe<any[]>(
-        `SELECT substr(tx_date_iso,1,4) as year,
+        `SELECT SUBSTRING(tx_date_iso,1,4) as year,
                 COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit
          FROM lvr_land
          WHERE city='${safeC}' AND district='${safeD}' AND building_type='${safeT}'
            AND tx_type LIKE '%建物%' AND tx_date_iso IS NOT NULL AND total_price > 0
-         GROUP BY year HAVING year >= '2020' ORDER BY year`,
+         GROUP BY SUBSTRING(tx_date_iso, 1, 4) HAVING SUBSTRING(tx_date_iso, 1, 4) >= '2020' ORDER BY 1`,
       ),
       // 同行政區其他建物類型入口
       prisma.$queryRawUnsafe<any[]>(
@@ -198,6 +196,7 @@ export default async function PriceTypePage({
           <a href="/" className="site-logo">法拍屋<span>資訊平台</span></a>
           <a href="/auction" className="nav-link">法拍屋</a>
           <a href="/price" className="nav-link" style={{ color: '#2a5298' }}>實價登錄</a>
+          <a href="/compare" className="nav-link" style={{ color: '#2a5298' }}>比較</a>
         </div>
       </header>
 
