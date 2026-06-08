@@ -37,7 +37,7 @@ export default async function CityPage({ params }: { params: Params }) {
   const c = decodeURIComponent(city);
   const safeC = c.replace(/'/g, "''");
 
-  const [statsRows, districts, lvrRows] = await Promise.all([
+  const [statsRows, districts, lvrRows, typeRows, recentRows] = await Promise.all([
     prisma.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n, COUNT(DISTINCT district) as d,
               AVG(CASE WHEN price>0 THEN price END) as avg
@@ -58,6 +58,18 @@ export default async function CityPage({ params }: { params: Params }) {
        WHERE city='${safeC}' AND tx_type LIKE '%建物%'
          AND tx_date_iso >= to_char(CURRENT_DATE - INTERVAL '2 years', 'YYYY-MM-DD')`
     ).catch(() => []),
+    prisma.$queryRawUnsafe<any[]>(
+      `SELECT type, COUNT(*) as n, AVG(CASE WHEN price>0 THEN price END) as avg
+       FROM houses
+       WHERE city='${safeC}' AND type IS NOT NULL AND type!=''
+       GROUP BY type ORDER BY n DESC LIMIT 6`
+    ).catch(() => []),
+    prisma.$queryRawUnsafe<any[]>(
+      `SELECT id, city, district, address, price, type, auction_date, status
+       FROM houses
+       WHERE city='${safeC}' AND auction_date IS NOT NULL AND auction_date!=''
+       ORDER BY auction_date DESC LIMIT 6`
+    ).catch(() => []),
   ]);
 
   const st = statsRows[0];
@@ -69,6 +81,8 @@ export default async function CityPage({ params }: { params: Params }) {
   const lvrAvgWan    = lvrRows[0]?.avg_price ? Math.round(Number(lvrRows[0].avg_price) / 10000) : null;
   const discountPct  = (st.avg && lvrRows[0]?.avg_price && Number(lvrRows[0].avg_price) > 0)
     ? Math.round((1 - Number(st.avg) / Number(lvrRows[0].avg_price)) * 100) : null;
+  const topDistrict  = districts[0]?.district || '';
+  const topType      = typeRows[0]?.type || '';
 
   const BASE = process.env.NEXT_PUBLIC_BASE_URL || '';
 
@@ -180,13 +194,100 @@ export default async function CityPage({ params }: { params: Params }) {
           </div>
 
           {/* 查看全部 */}
-          <div style={{ textAlign: 'center', marginTop: '2rem', marginBottom: '1rem' }}>
+          <div style={{ textAlign: 'center', marginTop: '2rem', marginBottom: '1.5rem' }}>
             <Link href={`/auction?city=${encodeURIComponent(c)}&sort=date`}
               style={{ display: 'inline-block', padding: '.65rem 2rem', background: '#c2632a', color: '#fff',
                 fontSize: '.875rem', fontWeight: 500, borderRadius: 2, textDecoration: 'none',
                 fontFamily: "'Noto Sans TC', sans-serif", letterSpacing: '.06em' }}>
               查看 {c} 全部 {total.toLocaleString()} 筆物件 →
             </Link>
+          </div>
+
+          {/* 建物類型分布 */}
+          {typeRows.length > 0 && (
+            <div style={{ marginBottom: '2rem' }}>
+              <h2 style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '1rem', fontWeight: 700,
+                color: '#c2632a', borderLeft: '4px solid #c2632a', padding: '.6rem 1rem',
+                background: '#fff8f4', marginBottom: '1rem' }}>
+                法拍建物類型分布
+              </h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+                {typeRows.map((r: any) => {
+                  const pct = Math.round(Number(r.n) / total * 100);
+                  const typeAvg = r.avg ? Math.floor(Number(r.avg) / 10000) : null;
+                  return (
+                    <div key={r.type} style={{ background: '#fff', border: '1px solid #ececec',
+                      borderRadius: 2, padding: '1rem 1.1rem' }}>
+                      <div style={{ fontSize: '.85rem', fontWeight: 600, color: '#333', marginBottom: '.4rem' }}>
+                        {r.type}
+                      </div>
+                      <div style={{ fontSize: '.78rem', color: '#aaa', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{Number(r.n).toLocaleString()} 筆（{pct}%）</span>
+                        {typeAvg && <span style={{ color: '#c2632a', fontWeight: 500 }}>均 {typeAvg.toLocaleString()} 萬</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 最新開標物件 */}
+          {recentRows.length > 0 && (
+            <div style={{ marginBottom: '2rem' }}>
+              <h2 style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '1rem', fontWeight: 700,
+                color: '#c2632a', borderLeft: '4px solid #c2632a', padding: '.6rem 1rem',
+                background: '#fff8f4', marginBottom: '1rem' }}>
+                最新開標物件
+              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {recentRows.map((r: any) => {
+                  const priceWan = r.price ? Math.floor(Number(r.price) / 10000) : null;
+                  return (
+                    <Link key={r.id}
+                      href={`/auction/${encodeURIComponent(c)}/${encodeURIComponent(r.district || '')}/${r.id}`}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        background: '#fff', border: '1px solid #ececec', borderRadius: 2,
+                        padding: '.8rem 1.1rem', textDecoration: 'none',
+                        transition: 'border-color .15s' }}>
+                      <div>
+                        <span style={{ fontSize: '.78rem', color: '#aaa', marginRight: 8 }}>{r.district}</span>
+                        <span style={{ fontSize: '.85rem', color: '#333', fontWeight: 500 }}>
+                          {r.address || r.type || '法拍物件'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+                        {priceWan && (
+                          <span style={{ fontSize: '.85rem', fontWeight: 600, color: '#c2632a' }}>
+                            {priceWan.toLocaleString()} 萬
+                          </span>
+                        )}
+                        <span style={{ fontSize: '.72rem', color: '#ccc' }}>{r.auction_date}</span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 市場解讀段落 */}
+          <div style={{ background: '#fff', border: '1px solid #ececec', borderRadius: 2,
+            padding: 'clamp(1.25rem,4vw,2rem)', marginBottom: '1.5rem' }}>
+            <h2 style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '1rem', fontWeight: 700,
+              color: '#333', marginBottom: '1rem' }}>
+              {c}法拍市場概況
+            </h2>
+            <p style={{ fontSize: '.875rem', color: '#555', lineHeight: 2, margin: 0 }}>
+              {c}目前共有 <strong>{total.toLocaleString()}</strong> 筆法拍物件，涵蓋 <strong>{distCount}</strong> 個行政區。
+              {topDistrict && <>以 <strong>{topDistrict}</strong> 物件量最多，</>}
+              {topType && <>建物類型以<strong>{topType}</strong>為主。</>}
+              {avgWan && <>整體法拍底價均約 <strong>{avgWan.toLocaleString()} 萬元</strong>。</>}
+              {lvrAvgWan && discountPct !== null && discountPct > 0 && (
+                <>相較於近兩年實際成交均價 <strong>{lvrAvgWan.toLocaleString()} 萬元</strong>，法拍底價平均約低 <strong>{discountPct}%</strong>，對具備看屋與評估能力的買方而言，具有一定的議價空間。</>
+              )}
+              {' '}法拍屋因涉及點交、清空、查封等法律程序，建議投標前詳閱法院公告，並評估相關風險後再行決定。
+            </p>
           </div>
 
           {/* 同縣市預售屋入口 */}

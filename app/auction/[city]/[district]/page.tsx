@@ -15,6 +15,18 @@ type SearchP = Promise<{
 
 const PAGE_SIZE = 30;
 
+const TAICHUNG_DISTRICT_PERIODS: Record<string, string[]> = {
+  '東區':   ['1期', '6期', '9期'],
+  '西區':   ['2期', '3期', '5期'],
+  '北區':   ['4期'],
+  '北屯區': ['4期', '10期', '11期', '14期'],
+  '西屯區': ['4期', '5期', '7期', '12期'],
+  '南屯區': ['5期', '7期', '8期', '13期'],
+  '南區':   ['13期'],
+  '大里區': ['15期'],
+  '豐原區': ['16期'],
+};
+
 export async function generateStaticParams() {
   const rows = await prisma.$queryRawUnsafe<{ city: string; district: string }[]>(
     `SELECT DISTINCT city, district FROM houses
@@ -103,7 +115,7 @@ export default async function DistrictPage({
     ? `CASE WHEN is_agent_featured=1 THEN 0 ELSE 1 END, CASE WHEN price IS NULL OR price=0 THEN 1 ELSE 0 END, price ASC`
     : `CASE WHEN is_agent_featured=1 THEN 0 ELSE 1 END, CASE WHEN auction_date IS NULL OR auction_date='' THEN 1 ELSE 0 END, auction_date DESC`;
 
-  const [statsRows, listings, otherDistricts, countRow, typeRows, lvrRow, roadRows, roundRows] = await Promise.all([
+  const [statsRows, listings, otherDistricts, countRow, typeRows, lvrRow, roadRows, roundRows, inheritedRows] = await Promise.all([
     prisma.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) AS n,
               AVG(CASE WHEN price>0 THEN price END) AS avg,
@@ -174,6 +186,10 @@ export default async function DistrictPage({
          END IS NOT NULL
        ORDER BY COUNT(*) DESC LIMIT 8`
     ).catch(() => []),
+    // 逾期未辦繼承登記土地
+    prisma.$queryRawUnsafe<{ n: number }[]>(
+      `SELECT COUNT(*) as n FROM inherited_land WHERE city='${safeC}' AND district='${safeD}'`
+    ).catch(() => []),
     // 拍次統計
     prisma.$queryRawUnsafe<{ round_label: string; n: number; avg: number }[]>(
       `SELECT
@@ -225,6 +241,8 @@ export default async function DistrictPage({
     : null;
   const fmtWan = (v: number | null) => v ? `${v.toLocaleString()} 萬` : '—';
   const hasFilter = !!(delivery || typeFilter || priceMin !== null || priceMax !== null);
+  const relatedPeriods = c.includes('台中') ? (TAICHUNG_DISTRICT_PERIODS[d] || []) : [];
+  const inheritedCount = Number(inheritedRows?.[0]?.n ?? 0);
 
   const q = (overrides: Record<string, string | number | undefined>) => {
     const base: Record<string, string | number | undefined> = {
@@ -768,6 +786,34 @@ export default async function DistrictPage({
               查看預售屋 →
             </a>
           </div>
+
+          {/* 重劃區連結（台中各期） */}
+          {relatedPeriods.map(period => (
+            <div key={period} style={{ background: '#f7f4ff', border: '1px solid #c8b8e8', padding: '1rem clamp(1.25rem,3vw,1.75rem)', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <div style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '.88rem', fontWeight: 700, color: '#7b5ea7' }}>台中{period}重劃區資訊</div>
+                <div style={{ fontSize: '.75rem', color: '#aaa', marginTop: '.2rem' }}>重劃區範圍、建商進駐、法拍與實價行情一覽</div>
+              </div>
+              <a href={`/land-readjustment/${encodeURIComponent('台中')}/${encodeURIComponent(period)}`}
+                style={{ flexShrink: 0, padding: '.45rem 1rem', background: '#7b5ea7', color: '#fff', fontSize: '.8rem', fontWeight: 500, textDecoration: 'none', borderRadius: 2, fontFamily: "'Noto Sans TC', sans-serif" }}>
+                查看重劃區 →
+              </a>
+            </div>
+          ))}
+
+          {/* 逾期未辦繼承土地連結 */}
+          {inheritedCount > 0 && (
+            <div style={{ background: '#fff8f4', border: '1px solid #f0c4a0', borderLeft: '4px solid #c2632a', padding: '1rem clamp(1.25rem,3vw,1.75rem)', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <div style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '.88rem', fontWeight: 700, color: '#c2632a' }}>逾期未辦繼承登記土地公告</div>
+                <div style={{ fontSize: '.75rem', color: '#aaa', marginTop: '.2rem' }}>{d} 有 {inheritedCount} 筆登記，公告期間可申請法院代為標售</div>
+              </div>
+              <a href={`/special-properties/inherited-land/${encodeURIComponent(c)}/${encodeURIComponent(d)}`}
+                style={{ flexShrink: 0, padding: '.45rem 1rem', background: '#c2632a', color: '#fff', fontSize: '.8rem', fontWeight: 500, textDecoration: 'none', borderRadius: 2, fontFamily: "'Noto Sans TC', sans-serif" }}>
+                查看公告 →
+              </a>
+            </div>
+          )}
 
           {/* 同縣市其他行政區 */}
           {otherDistricts.length > 0 && (

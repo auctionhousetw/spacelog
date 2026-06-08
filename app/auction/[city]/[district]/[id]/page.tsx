@@ -16,6 +16,18 @@ if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
 // #ececec  一般分隔線
 // #444 / #888 / #aaa / #ccc  內文灰階
 
+const TAICHUNG_DISTRICT_PERIODS: Record<string, string[]> = {
+  '東區':   ['1期', '6期', '9期'],
+  '西區':   ['2期', '3期', '5期'],
+  '北區':   ['4期'],
+  '北屯區': ['4期', '10期', '11期', '14期'],
+  '西屯區': ['4期', '5期', '7期', '12期'],
+  '南屯區': ['5期', '7期', '8期', '13期'],
+  '南區':   ['13期'],
+  '大里區': ['15期'],
+  '豐原區': ['16期'],
+};
+
 function cleanFloor(raw: string | null | undefined): string {
   if (!raw) return '';
   const m = raw.match(/^[\d\-~+]+樓(?:\/共\d+樓)?/);
@@ -426,6 +438,12 @@ export default async function ItemPage({
   const dimLabelStyle: React.CSSProperties = { ...labelStyle, color: '#ccc' };
 
   const BASE = process.env.NEXT_PUBLIC_BASE_URL || '';
+
+  const itemCity = item.city || cityDecoded;
+  const itemDist = item.district || distDecoded;
+  const relatedPeriods = itemCity.includes('台中')
+    ? (TAICHUNG_DISTRICT_PERIODS[itemDist] || [])
+    : [];
 
   return (
     <>
@@ -936,6 +954,14 @@ export default async function ItemPage({
                     </Link>
                   );
                 })()}
+                {relatedPeriods.map(period => (
+                  <Link key={period}
+                    href={`/land-readjustment/${encodeURIComponent('台中')}/${encodeURIComponent(period)}`}
+                    className="fp-btn"
+                    style={{ display: 'block', width: '100%', padding: '.6rem 0', textAlign: 'center', fontSize: '.8rem', fontWeight: 500, textDecoration: 'none', background: '#f7f4ff', color: '#7b5ea7', border: '1px solid #c8b8e8', borderRadius: 2, marginBottom: 8, fontFamily: "'Noto Sans TC', sans-serif", letterSpacing: '.08em', cursor: 'pointer' }}>
+                    🏗️ 台中{period}重劃區資訊
+                  </Link>
+                ))}
                 {item.url
                   ? <a href={item.url} target="_blank" rel="noopener noreferrer" className="fp-btn fp-btn-ghost">查看原始資料來源 ↗</a>
                   : <span className="fp-btn fp-btn-disabled">無原始資料來源</span>}
