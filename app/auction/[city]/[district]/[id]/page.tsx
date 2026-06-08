@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PrismaClient } from '@prisma/client';
+import ShareButtons from '@/components/ShareButtons';
 
 // ─── Prisma Singleton ──────────────────────────────────────────────────────────
 const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
@@ -970,21 +971,16 @@ export default async function ItemPage({
                 </Link>
               </div>
 
-              {/* 【新增】收藏 / 分享 / 開標提醒 */}
-              <div style={{ background: '#fff', border: '1px solid #ececec', padding: '1.1rem 1.2rem', marginTop: 1 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-                  {[
-                    { icon: '🔔', label: '開標提醒' },
-                    { icon: '📌', label: '收藏' },
-                    { icon: '↗',  label: '分享' },
-                  ].map(b => (
-                    <button key={b.label} className="fp-util-btn">
-                      <span style={{ fontSize: 16 }}>{b.icon}</span>
-                      <span>{b.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* 收藏 / 分享 / 開標提醒 */}
+              <ShareButtons
+                url={`${BASE}/auction/${encodeURIComponent(item.city || cityDecoded)}/${encodeURIComponent(item.district || distDecoded)}/${id}`}
+                title={[
+                  item.title?.replace(/-[^-]+[市縣].*$/, '') || item.address || '',
+                  priceWan ? `底價 ${priceWan}` : '',
+                  r.total_ping ? `${r.total_ping} 坪` : '',
+                  displayAuctionDate ? `開標 ${displayAuctionDate}` : '',
+                ].filter(Boolean).join('・')}
+              />
 
             </div>
           </div>
