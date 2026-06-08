@@ -10,7 +10,8 @@ interface ShareButtonsProps {
 export default function ShareButtons({ url, title }: ShareButtonsProps) {
   const [copied, setCopied] = useState(false);
 
-  const lineShareUrl = `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`;
+  // line.me/R/msg/text/ 不需要登入，手機直接開 LINE App，桌機顯示 QR code
+  const lineShareUrl = `https://line.me/R/msg/text/?${encodeURIComponent(title + '\n' + url)}`;
   const fbShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
 
   const handleCopy = async () => {
