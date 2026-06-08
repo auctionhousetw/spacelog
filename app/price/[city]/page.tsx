@@ -51,7 +51,8 @@ export default async function LvrCityPage({ params }: { params: Params }) {
     if (!statsRows[0] || Number(statsRows[0].n) === 0) notFound();
     cityStats = statsRows[0];
     districts = distRows;
-  } catch {
+  } catch (e: any) {
+    if (e?.message?.startsWith('NEXT_')) throw e;
     notFound();
   }
 

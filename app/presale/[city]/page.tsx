@@ -52,7 +52,7 @@ export default async function PresaleCityPage({ params }: { params: Params }) {
     if (!statsRows[0] || Number(statsRows[0].n) === 0) notFound();
     cityStats = statsRows[0];
     districts = distRows;
-  } catch { notFound(); }
+  } catch (e: any) { if (e?.message?.startsWith('NEXT_')) throw e; notFound(); }
 
   const total    = Number(cityStats.n);
   const avgWan   = cityStats.avg ? Math.round(Number(cityStats.avg) / 10000) : null;

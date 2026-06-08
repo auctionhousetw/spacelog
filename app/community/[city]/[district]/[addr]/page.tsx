@@ -19,9 +19,17 @@ export async function generateMetadata({ params }: { params: Params }) {
 
   let n = 0, avg = 0;
   try {
+    const stripMeta = (addr: string) => {
+      let s = addr;
+      const cv = [c, c.replace(/^台/, '臺'), c.replace(/^臺/, '台')];
+      for (const v of cv) { if (s.startsWith(v)) { s = s.slice(v.length); break; } }
+      if (s.startsWith(d)) s = s.slice(d.length);
+      return s;
+    };
+    const shortA = stripMeta(a).replace(/'/g, "''").replace(/%/g, '\\%');
     const rows = await prisma.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg
-       FROM lvr_land WHERE city='${c.replace(/'/g, "''")}' AND district='${d.replace(/'/g, "''")}' AND address LIKE '%${a.replace(/'/g, "''").replace(/%/g, '\\%')}%' AND tx_type LIKE '%建物%'`
+       FROM lvr_land WHERE city='${c.replace(/'/g, "''")}' AND district='${d.replace(/'/g, "''")}' AND address LIKE '%${shortA}%' AND tx_type LIKE '%建物%'`
     );
     n   = Number(rows[0]?.n || 0);
     avg = rows[0]?.avg ? Math.round(Number(rows[0].avg) / 10000) : 0;
@@ -42,14 +50,26 @@ export default async function CommunityPage({ params }: { params: Params }) {
 
   const safeC = c.replace(/'/g, "''");
   const safeD = d.replace(/'/g, "''");
-  const safeA = a.replace(/'/g, "''");
+
+  // 剝掉地址開頭的縣市+行政區前綴（台/臺 兩種字形），避免漏查短格式地址
+  const stripPrefix = (addr: string): string => {
+    let s = addr;
+    // 先移除縣市（台中市 / 臺中市 等）
+    const cityVariants = [c, c.replace(/^台/, '臺'), c.replace(/^臺/, '台')];
+    for (const cv of cityVariants) { if (s.startsWith(cv)) { s = s.slice(cv.length); break; } }
+    // 再移除行政區
+    if (s.startsWith(d)) s = s.slice(d.length);
+    return s;
+  };
+  const addrShort = stripPrefix(a);  // e.g. 榮和路８８號
+  const safeA = addrShort.replace(/'/g, "''");
 
   // 提取路段名（用於周邊查詢）
   const roadName = (() => {
-    const ri = a.indexOf('路');
-    const si = a.indexOf('街');
-    if (ri > 0 && (si === -1 || ri <= si)) return a.slice(0, ri + 1);
-    if (si > 0) return a.slice(0, si + 1);
+    const ri = addrShort.indexOf('路');
+    const si = addrShort.indexOf('街');
+    if (ri > 0 && (si === -1 || ri <= si)) return addrShort.slice(0, ri + 1);
+    if (si > 0) return addrShort.slice(0, si + 1);
     return '';
   })();
   const safeRoad = roadName.replace(/'/g, "''");
@@ -57,6 +77,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
   let lvrRecords: any[] = [], lvrStats: any = null, yearTrend: any[] = [];
   let auctionRecords: any[] = [], distStats: any = null;
   let layoutRows: any[] = [], areaBuckets: any[] = [], floorRows: any[] = [], nearbyRows: any[] = [], presaleRows: any[] = [];
+  let projectName: string | null = null;
 
   try {
     const [lvrFetched, lvrStatsRows, trendRows, auctionRows, distStatsRows,
@@ -188,6 +209,28 @@ export default async function CommunityPage({ params }: { params: Params }) {
            AND total_price > 0
          ORDER BY tx_date_iso DESC LIMIT 10`
       ).catch(() => []);
+
+      // 建案名稱：先查 community_names 快取表，再 fallback 到 lvr_presale
+      const safeAddrShort = addrShort.replace(/'/g, "''");
+      const nameRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT name FROM community_names
+         WHERE city='${safeC}' AND district='${safeD}' AND addr='${safeAddrShort}'
+         LIMIT 1`
+      ).catch(() => []);
+      if (nameRows[0]?.name) {
+        projectName = nameRows[0].name as string;
+      } else {
+        // fallback：lvr_presale 用寬鬆路段名比對
+        const fallbackRows = await prisma.$queryRawUnsafe<any[]>(
+          `SELECT project_name, COUNT(*) as n
+           FROM lvr_presale
+           WHERE city='${safeC}' AND district='${safeD}'
+             AND address LIKE '%${safeAddrShort}%'
+             AND project_name IS NOT NULL AND project_name != ''
+           GROUP BY project_name ORDER BY n DESC LIMIT 1`
+        ).catch(() => []);
+        if (fallbackRows[0]?.project_name) projectName = fallbackRows[0].project_name as string;
+      }
     }
   } catch (e: any) {
     if (e?.message?.includes('no such table')) notFound();
@@ -309,8 +352,13 @@ export default async function CommunityPage({ params }: { params: Params }) {
           <p style={{ fontSize: '.72rem', fontWeight: 500, letterSpacing: '.2em', color: '#2a5298', marginBottom: '.5rem' }}>
             {pageSubLabel}
           </p>
+          {projectName && (
+            <p style={{ fontSize: '.82rem', color: '#c2632a', fontWeight: 600, marginBottom: '.3rem', letterSpacing: '.05em' }}>
+              {projectName}
+            </p>
+          )}
           <h1 style={{ fontFamily: "'Noto Serif TC', serif", fontSize: 'clamp(1.3rem,4vw,1.9rem)', fontWeight: 700, color: '#1e3a6e', lineHeight: 1.5, marginBottom: '.6rem' }}>
-            {a} {pageLabel}歷年成交
+            {addrShort} {pageLabel}歷年成交
           </h1>
           <p style={{ fontSize: '.88rem', color: '#888', fontWeight: 300, lineHeight: 2, margin: 0 }}>
             {lvrStats.earliest?.slice(0,4)}～{lvrStats.latest?.slice(0,4)} 年，共{' '}

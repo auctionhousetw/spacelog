@@ -19,9 +19,18 @@ export async function generateMetadata({ params }: { params: Params }) {
 
   let n = 0, avg = 0;
   try {
+    const strip = (addr: string) => {
+      let s = addr;
+      for (const cv of [c, c.replace(/^台/, '臺'), c.replace(/^臺/, '台')]) {
+        if (s.startsWith(cv)) { s = s.slice(cv.length); break; }
+      }
+      if (s.startsWith(d)) s = s.slice(d.length);
+      return s || addr;
+    };
+    const shortA = strip(a).replace(/'/g, "''").replace(/%/g, '\\%');
     const rows = await prisma.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg
-       FROM lvr_land WHERE city='${c.replace(/'/g, "''")}' AND district='${d.replace(/'/g, "''")}' AND address LIKE '%${a.replace(/'/g, "''").replace(/%/g, '\\%')}%' AND tx_type LIKE '%建物%'`
+       FROM lvr_land WHERE city='${c.replace(/'/g, "''")}' AND district='${d.replace(/'/g, "''")}' AND address LIKE '%${shortA}%' AND tx_type LIKE '%建物%'`
     );
     n   = Number(rows[0]?.n || 0);
     avg = rows[0]?.avg ? Math.round(Number(rows[0].avg) / 10000) : 0;
@@ -42,7 +51,17 @@ export default async function PriceAddressPage({ params }: { params: Params }) {
 
   const safeC = c.replace(/'/g, "''");
   const safeD = d.replace(/'/g, "''");
-  const safeA = a.replace(/'/g, "''");
+
+  // 剝掉地址開頭的縣市+行政區前綴（台/臺 兩字形）
+  const stripPrefix = (addr: string): string => {
+    let s = addr;
+    for (const cv of [c, c.replace(/^台/, '臺'), c.replace(/^臺/, '台')]) {
+      if (s.startsWith(cv)) { s = s.slice(cv.length); break; }
+    }
+    if (s.startsWith(d)) s = s.slice(d.length);
+    return s || addr;
+  };
+  const safeA = stripPrefix(a).replace(/'/g, "''");
 
   let records: any[] = [], stats: any = null, yearTrend: any[] = [];
 

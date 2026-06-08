@@ -294,6 +294,11 @@ export default async function LvrDistrictPage({
         .filter-dot { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid #ddd; flex-shrink: 0; }
         .filter-opt.active .filter-dot { border-color: #2a5298; background: #2a5298; }
 
+        .bld-type-card { background: #fff; padding: .9rem 1rem; text-decoration: none; color: inherit; display: block; transition: background .15s; }
+        .bld-type-card:hover { background: #f0f5ff !important; }
+        .road-stat-link { padding: .5rem 1rem; display: flex; align-items: center; gap: 1rem; text-decoration: none; color: inherit; transition: background .12s; }
+        .road-stat-link:hover { background: #f8fbff; }
+
         .price-range { padding: .6rem 1rem .85rem; display: flex; flex-direction: column; gap: 6px; }
         .price-row { display: flex; align-items: center; gap: 5px; }
         .price-input { flex: 1; min-width: 0; padding: .28rem .45rem; font-size: .78rem; border: 1px solid #e0e8f8; outline: none; font-family: 'Noto Sans TC', sans-serif; color: #444; background: #fafafa; }
@@ -570,9 +575,7 @@ export default async function LvrDistrictPage({
                   return (
                     <a key={r.building_type}
                       href={`/price/${encodeURIComponent(c)}/${encodeURIComponent(d)}/${encodeURIComponent(r.building_type)}`}
-                      style={{ background: '#fff', padding: '.9rem 1rem', textDecoration: 'none', color: 'inherit', display: 'block', transition: 'background .15s' }}
-                      onMouseOver={(e) => (e.currentTarget.style.background = '#f0f5ff')}
-                      onMouseOut={(e) => (e.currentTarget.style.background = '#fff')}>
+                      className="bld-type-card">
                       <div style={{ fontSize: '.75rem', color: '#2a5298', fontWeight: 600, marginBottom: '.35rem' }}>
                         {r.building_type}
                         <span style={{ color: '#aaa', fontWeight: 300, marginLeft: 4 }}>({Number(r.n)} 筆)</span>
@@ -611,9 +614,8 @@ export default async function LvrDistrictPage({
                   return (
                     <a key={r.road_name}
                       href={`/price/${encodeURIComponent(c)}/${encodeURIComponent(d)}/road/${encodeURIComponent(r.road_name)}`}
-                      style={{ padding: '.5rem 1rem', borderBottom: i < roadStats.length - 1 ? '1px solid #f0f5ff' : 'none', display: 'flex', alignItems: 'center', gap: '1rem', textDecoration: 'none', color: 'inherit', transition: 'background .12s' }}
-                      onMouseOver={(e) => (e.currentTarget.style.background = '#f8fbff')}
-                      onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}>
+                      className="road-stat-link"
+                      style={{ borderBottom: i < roadStats.length - 1 ? '1px solid #f0f5ff' : 'none' }}>
                       <span style={{ width: 18, textAlign: 'right', fontSize: '.72rem', color: i < 3 ? '#2a5298' : '#bbb', fontWeight: i < 3 ? 600 : 300, flexShrink: 0 }}>
                         {i + 1}
                       </span>

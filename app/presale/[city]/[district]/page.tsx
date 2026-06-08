@@ -88,7 +88,7 @@ export default async function PresaleDistrictPage({ params }: { params: Params }
     distStats = statsRows[0];
     projects  = projectRows;
     yearTrend = trendRows;
-  } catch { notFound(); }
+  } catch (e: any) { if (e?.message?.startsWith('NEXT_')) throw e; notFound(); }
 
   const total    = Number(distStats.n);
   const avgWan   = distStats.avg ? Math.round(Number(distStats.avg) / 10000) : null;

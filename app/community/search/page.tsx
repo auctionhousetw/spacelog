@@ -37,9 +37,29 @@ export default async function CommunitySearchPage({ searchParams }: { searchPara
                          THEN SUBSTRING(address,1,STRPOS(address,'號'))
                          ELSE address END
            ORDER BY n DESC
-           LIMIT 20`,
+           LIMIT 50`,
           `%${keyword}%`
-        ).then(rows => rows.map(r => ({ ...r, n: Number(r.n) }))),
+        ).then(rows => {
+          // 合併同一棟樓因地址格式不同（台中市前綴 / 無前綴 / 臺中市前綴）而產生的重複條目
+          const map = new Map<string, { city: string; district: string; addr: string; n: number }>();
+          for (const r of rows) {
+            let addr = r.addr as string;
+            const city = r.city as string;
+            const district = r.district as string;
+            // 剝掉縣市+行政區前綴（台/臺 兩字形）
+            const cityVariants = [city, city.replace(/^台/, '臺'), city.replace(/^臺/, '台')];
+            for (const cv of cityVariants) { if (addr.startsWith(cv)) { addr = addr.slice(cv.length); break; } }
+            if (addr.startsWith(district)) addr = addr.slice(district.length);
+            const key = `${city}|${district}|${addr}`;
+            const existing = map.get(key);
+            if (existing) {
+              existing.n += Number(r.n);
+            } else {
+              map.set(key, { city, district, addr, n: Number(r.n) });
+            }
+          }
+          return [...map.values()].sort((a, b) => b.n - a.n).slice(0, 20);
+        }),
 
         prisma.$queryRawUnsafe<{ city: string; district: string; project_name: string; n: bigint; avg_price: number | null }[]>(
           `SELECT city, district, project_name, COUNT(*) as n,
