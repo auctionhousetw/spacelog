@@ -217,17 +217,16 @@ export default async function CommunityPage({ params }: { params: Params }) {
          ORDER BY tx_date_iso DESC LIMIT 10`
       ).catch(() => []);
 
-      // 建案名稱：查 community_names，用 base addr 匹配（去掉樓層後比對 addr 欄位或 addrs JSON）
+      // 建案名稱：只用政府委員會來源（gov_committee），避免侵權
       const nameRows = await prisma.$queryRawUnsafe<any[]>(
-        `SELECT name, addr, addrs, tx_count FROM community_names
+        `SELECT name FROM community_names
          WHERE city='${safeC}' AND district='${safeD}'
-           AND (addr='${safeAddrBase}' OR addr LIKE '${safeAddrBase}%' OR addrs LIKE '%${safeAddrBase}%')
-         ORDER BY tx_count DESC LIMIT 1`
+           AND source='gov_committee'
+           AND (addr='${safeAddrBase}' OR addr LIKE '${safeAddrBase}%')
+         LIMIT 1`
       ).catch(() => []);
       if (nameRows[0]?.name) {
         projectName = nameRows[0].name as string;
-        communityTxCount = Number(nameRows[0].tx_count || 0);
-        try { communityAddrs = JSON.parse(nameRows[0].addrs || '[]'); } catch { communityAddrs = [nameRows[0].addr].filter(Boolean); }
       } else {
         // fallback：lvr_presale 用寬鬆路段名比對
         const safeAddrShort = addrShort.replace(/'/g, "''");
@@ -397,28 +396,10 @@ export default async function CommunityPage({ params }: { params: Params }) {
           </p>
         </div>
 
-        {/* 已知門牌列表（來自 community_names.addrs） */}
-        {communityAddrs.length > 1 && (
-          <div style={{ background: '#fff', borderBottom: '1px solid #ececec', padding: '.75rem 1.25rem', marginBottom: 1 }}>
-            <span style={{ fontSize: '.72rem', color: '#aaa', letterSpacing: '.05em', marginRight: 10 }}>此社區已知門牌</span>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 8px', marginTop: '.4rem' }}>
-              {communityAddrs.map((addr, i) => (
-                <a key={i} href={`/community/${encodeURIComponent(c)}/${encodeURIComponent(d)}/${encodeURIComponent(addr)}`}
-                  style={{ fontSize: '.72rem', color: addr === addrBase || addrShort.startsWith(addr) ? '#fff' : '#2a5298',
-                    background: addr === addrBase || addrShort.startsWith(addr) ? '#2a5298' : '#f0f5ff',
-                    border: '1px solid #b8d0f0', padding: '2px 8px', borderRadius: 3, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                  {addr}
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* 統計四格 */}
-        <div style={{ background: '#fff', borderBottom: '1px solid #ececec', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', marginBottom: 1 }}>
+        <div style={{ background: '#fff', borderBottom: '1px solid #ececec', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 1 }}>
           {[
-            { label: '本址成交', value: `${totalCount} 筆`, blue: true },
-            { label: '社區總成交', value: communityTxCount > 0 ? `${communityTxCount} 筆` : `${totalCount} 筆`, blue: true },
+            { label: '成交筆數', value: `${totalCount} 筆`, blue: true },
             { label: '每坪均價',   value: avgUnit ? `${avgUnit.toFixed(1)} 萬` : '—' },
             {
               label: `比${d}均價`,
@@ -435,7 +416,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
                 color: (s as any).blue ? '#2a5298' : (s as any).orange ? '#c2632a' : (s as any).green ? '#3a7d2c' : '#333' }}>
                 {s.value}
               </div>
-              {i === 3 && distAvgUnit && premiumPct !== null && (
+              {i === 2 && distAvgUnit && premiumPct !== null && (
                 <div style={{ fontSize: '.68rem', color: '#bbb', marginTop: '.2rem' }}>
                   區均 {distAvgUnit.toFixed(1)} 萬/坪
                 </div>
