@@ -28,15 +28,19 @@ const TAICHUNG_DISTRICT_PERIODS: Record<string, string[]> = {
 };
 
 export async function generateStaticParams() {
-  const rows = await prisma.$queryRawUnsafe<{ city: string; district: string }[]>(
-    `SELECT DISTINCT city, district FROM houses
-     WHERE city IS NOT NULL AND city != ''
-       AND district IS NOT NULL AND district != ''`
-  );
-  return rows.map((r: { city: string; district: string }) => ({
-    city:     encodeURIComponent(r.city),
-    district: encodeURIComponent(r.district),
-  }));
+  try {
+    const rows = await prisma.$queryRawUnsafe<{ city: string; district: string }[]>(
+      `SELECT DISTINCT city, district FROM houses
+       WHERE city IS NOT NULL AND city != ''
+         AND district IS NOT NULL AND district != ''`
+    );
+    return rows.map((r: { city: string; district: string }) => ({
+      city:     encodeURIComponent(r.city),
+      district: encodeURIComponent(r.district),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function generateMetadata({ params }: { params: Params }) {

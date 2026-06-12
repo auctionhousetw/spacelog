@@ -10,10 +10,14 @@ if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
 type Params = Promise<{ city: string }>;
 
 export async function generateStaticParams() {
-  const rows = await prisma.$queryRawUnsafe<{ city: string }[]>(
-    `SELECT DISTINCT city FROM houses WHERE city IS NOT NULL AND city != ''`
-  );
-  return rows.map((r: { city: string }) => ({ city: encodeURIComponent(r.city) }));
+  try {
+    const rows = await prisma.$queryRawUnsafe<{ city: string }[]>(
+      `SELECT DISTINCT city FROM houses WHERE city IS NOT NULL AND city != ''`
+    );
+    return rows.map((r: { city: string }) => ({ city: encodeURIComponent(r.city) }));
+  } catch {
+    return [];
+  }
 }
 
 export async function generateMetadata({ params }: { params: Params }) {
