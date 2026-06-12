@@ -19,6 +19,9 @@ export const metadata: Metadata = {
   },
   description: '全台最完整的法拍屋查詢與實價登錄資料庫。最新開標資訊、歷史底價走勢、周邊成交行情，一站掌握台灣房地產市場。',
   keywords:    ['法拍屋', '實價登錄', '法拍', '台灣房地產', '法院拍賣', '底價查詢', '成交行情'],
+  verification: {
+    google: 'GWVaXrmKAicjp0rNIlcJi_CymLcmG9NxBxzwmc6kPuY',
+  },
   icons: {
     icon: '/favicon.png',
   },
