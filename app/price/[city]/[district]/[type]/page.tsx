@@ -35,24 +35,6 @@ export async function generateMetadata({ params }: { params: Params }) {
   };
 }
 
-export async function generateStaticParams() {
-  try {
-    const rows = await prisma.$queryRawUnsafe<{ city: string; district: string; building_type: string }[]>(
-      `SELECT DISTINCT city, district, building_type FROM lvr_land
-       WHERE building_type IS NOT NULL AND building_type != ''
-         AND city IS NOT NULL AND district IS NOT NULL
-       ORDER BY city, district, building_type`
-    );
-    return rows.map(r => ({
-      city:     encodeURIComponent(r.city),
-      district: encodeURIComponent(r.district),
-      type:     encodeURIComponent(r.building_type),
-    }));
-  } catch {
-    return [];
-  }
-}
-
 export default async function PriceTypePage({
   params, searchParams,
 }: {
