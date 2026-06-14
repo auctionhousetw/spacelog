@@ -19,6 +19,14 @@ export default async function CommunitySearchPage({ searchParams }: { searchPara
   let addrResults: { city: string; district: string; addr: string; n: number }[] = [];
   let projectResults: { city: string; district: string; project_name: string; n: number; avg_price: number | null }[] = [];
 
+  // 偵測「縣市＋行政區」格式（如：台中市烏日區），直接跳轉到實價登錄頁
+  if (keyword) {
+    const districtMatch = keyword.match(/^([^\s市縣]+[市縣])([^\s市縣]+[區鄉鎮市])$/)
+    if (districtMatch) {
+      redirect(`/price/${encodeURIComponent(districtMatch[1])}/${encodeURIComponent(districtMatch[2])}`)
+    }
+  }
+
   if (keyword) {
     try {
       const [addrRows, projectRows] = await Promise.all([
@@ -98,19 +106,18 @@ export default async function CommunitySearchPage({ searchParams }: { searchPara
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&family=Noto+Sans+TC:wght@300;400;500&display=swap');
         *, *::before, *::after { box-sizing: border-box; }
-        body { margin: 0; background: #f7f6f3; font-family: 'Noto Sans TC', sans-serif; color: #333; }
+        body { margin: 0; background: #f7f6f3; font-family: var(--font-noto-sans-tc), sans-serif; color: #333; }
         .site-bar { background: #fff; border-bottom: 1px solid #ececec; position: sticky; top: 0; z-index: 100; }
         .site-bar-inner { max-width: 1200px; margin: 0 auto; padding: 0 clamp(1rem,3vw,2rem); display: flex; align-items: center; gap: 1rem; height: 52px; }
-        .site-logo { font-family: 'Noto Serif TC', serif; font-size: 1.05rem; font-weight: 700; color: #c2632a; text-decoration: none; }
+        .site-logo { font-family: var(--font-noto-serif-tc), serif; font-size: 1.05rem; font-weight: 700; color: #c2632a; text-decoration: none; }
         .site-logo span { font-size: .72rem; font-weight: 400; color: #aaa; margin-left: 6px; }
         .nav-link { font-size: .82rem; color: #888; text-decoration: none; padding: .3rem .7rem; }
         .wrap { max-width: 900px; margin: 2rem auto; padding: 0 clamp(1rem,3vw,2rem); }
         .search-bar { display: flex; gap: 0; margin-bottom: 1.5rem; box-shadow: 0 2px 12px rgba(0,0,0,.08); border-radius: 2px; }
         .search-bar input { flex: 1; padding: .75rem 1rem; font-size: .9rem; border: 1px solid #ddd; border-right: none; border-radius: 2px 0 0 2px; outline: none; font-family: inherit; }
         .search-bar button { padding: .75rem 1.25rem; background: #2a5298; color: #fff; border: none; border-radius: 0 2px 2px 0; font-family: inherit; font-size: .88rem; font-weight: 500; cursor: pointer; white-space: nowrap; }
-        .sec-head { font-family: 'Noto Serif TC', serif; font-size: .92rem; font-weight: 700; color: #2a5298; border-left: 4px solid #2a5298; padding: .55rem 1rem; background: #f0f5ff; margin: 1.25rem 0 .65rem; }
+        .sec-head { font-family: var(--font-noto-serif-tc), serif; font-size: .92rem; font-weight: 700; color: #2a5298; border-left: 4px solid #2a5298; padding: .55rem 1rem; background: #f0f5ff; margin: 1.25rem 0 .65rem; }
         .sec-head.green { color: #1a6b3a; border-left-color: #1a6b3a; background: #f0fdf4; }
         .result-list { display: flex; flex-direction: column; gap: 4px; }
         .result-item { background: #fff; border: 1px solid #ececec; padding: .85rem 1.1rem; text-decoration: none; color: inherit; display: flex; align-items: center; justify-content: space-between; }

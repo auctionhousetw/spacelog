@@ -86,14 +86,13 @@ export default async function HomePage() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;700&family=Noto+Sans+TC:wght@300;400;500&display=swap');
         *, *::before, *::after { box-sizing: border-box; }
-        body { margin: 0; background: #f7f6f3; font-family: 'Noto Sans TC', sans-serif; color: #333; }
+        body { margin: 0; background: #f7f6f3; font-family: var(--font-noto-sans-tc), sans-serif; color: #333; }
 
         /* ── Header ── */
         .site-bar { background: #fff; border-bottom: 1px solid #ececec; position: sticky; top: 0; z-index: 100; }
         .site-bar-inner { max-width: 1200px; margin: 0 auto; padding: 0 clamp(1rem,3vw,2rem); display: flex; align-items: center; gap: 1rem; height: 52px; }
-        .site-logo { font-family: 'Noto Serif TC', serif; font-size: 1.05rem; font-weight: 700; color: #c2632a; text-decoration: none; flex-shrink: 0; }
+        .site-logo { font-family: var(--font-noto-serif-tc), serif; font-size: 1.05rem; font-weight: 700; color: #c2632a; text-decoration: none; flex-shrink: 0; }
         .site-logo span { font-size: .72rem; font-weight: 400; color: #aaa; margin-left: 6px; }
         .nav-link { font-size: .82rem; color: #888; text-decoration: none; padding: .3rem .7rem; border-radius: 2px; transition: all .15s; white-space: nowrap; }
         .nav-link:hover { color: #c2632a; background: #fff8f4; }
@@ -103,7 +102,7 @@ export default async function HomePage() {
         /* ── Hero ── */
         .hero { background: #fff; border-bottom: 1px solid #ececec; padding: clamp(2.5rem,6vw,4rem) clamp(1rem,3vw,2rem); text-align: center; }
         .hero-eyebrow { font-size: .72rem; font-weight: 500; letter-spacing: .22em; color: #c2632a; margin-bottom: 1rem; }
-        .hero-h1 { font-family: 'Noto Serif TC', serif; font-size: clamp(1.6rem,4.5vw,2.5rem); font-weight: 700; color: #222; line-height: 1.55; margin-bottom: 1rem; }
+        .hero-h1 { font-family: var(--font-noto-serif-tc), serif; font-size: clamp(1.6rem,4.5vw,2.5rem); font-weight: 700; color: #222; line-height: 1.55; margin-bottom: 1rem; }
         .hero-sub { font-size: clamp(.85rem,2vw,1rem); color: #888; font-weight: 300; line-height: 1.9; max-width: 560px; margin: 0 auto 2rem; }
 
         /* ── 頻道卡片 ── */
@@ -114,7 +113,7 @@ export default async function HomePage() {
         .channel-card.blue   { background: #f0f5ff; border-color: #b8d0f0; }
         .channel-card.purple { background: #f7f4ff; border-color: #c8b8e8; }
         .channel-icon { font-size: 1.6rem; margin-bottom: .6rem; }
-        .channel-label { font-family: 'Noto Serif TC', serif; font-size: 1.05rem; font-weight: 700; margin-bottom: .35rem; }
+        .channel-label { font-family: var(--font-noto-serif-tc), serif; font-size: 1.05rem; font-weight: 700; margin-bottom: .35rem; }
         .channel-card.orange .channel-label { color: #c2632a; }
         .channel-card.blue   .channel-label { color: #2a5298; }
         .channel-card.purple .channel-label { color: #7b5ea7; }
@@ -129,14 +128,14 @@ export default async function HomePage() {
         .stats-inner { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
         .stat-cell { padding: 1.1rem clamp(.75rem,2vw,1.5rem); text-align: center; border-right: 1px solid #f0f0f0; }
         .stat-cell:last-child { border-right: none; }
-        .stat-val { font-family: 'Noto Serif TC', serif; font-size: 1.35rem; font-weight: 700; color: #c2632a; line-height: 1.2; }
+        .stat-val { font-family: var(--font-noto-serif-tc), serif; font-size: 1.35rem; font-weight: 700; color: #c2632a; line-height: 1.2; }
         .stat-label { font-size: .72rem; color: #aaa; font-weight: 300; margin-top: .2rem; letter-spacing: .04em; }
 
         /* ── 主體 ── */
         .wrap { max-width: 1100px; margin: 0 auto; padding: clamp(1.5rem,4vw,2.5rem) clamp(1rem,3vw,2rem); }
 
         /* ── 區段標題 ── */
-        .sec-head { font-family: 'Noto Serif TC', serif; font-size: 1rem; font-weight: 700; color: #c2632a; border-left: 4px solid #c2632a; padding: .6rem 1rem; background: #fff8f4; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; }
+        .sec-head { font-family: var(--font-noto-serif-tc), serif; font-size: 1rem; font-weight: 700; color: #c2632a; border-left: 4px solid #c2632a; padding: .6rem 1rem; background: #fff8f4; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; }
         .sec-head a { font-size: .78rem; font-weight: 400; color: #c2632a; text-decoration: none; }
         .sec-head a:hover { text-decoration: underline; }
 
@@ -147,9 +146,9 @@ export default async function HomePage() {
         .house-card:hover .card-title { color: #c2632a; }
         .card-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: .5rem; }
         .badge { font-size: 9.5px; font-weight: 500; padding: .16rem .5rem; border-radius: 1px; }
-        .card-title { font-family: 'Noto Serif TC', serif; font-size: .88rem; font-weight: 500; color: #333; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: .4rem; transition: color .15s; }
+        .card-title { font-family: var(--font-noto-serif-tc), serif; font-size: .88rem; font-weight: 500; color: #333; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: .4rem; transition: color .15s; }
         .card-meta { font-size: .72rem; color: #aaa; font-weight: 300; }
-        .card-price { font-family: 'Noto Serif TC', serif; font-size: 1.15rem; font-weight: 700; color: #c2632a; margin-top: .5rem; }
+        .card-price { font-family: var(--font-noto-serif-tc), serif; font-size: 1.15rem; font-weight: 700; color: #c2632a; margin-top: .5rem; }
         .card-price small { font-size: .68rem; font-weight: 400; margin-left: 2px; }
 
         /* ── 縣市快速入口 ── */
@@ -165,7 +164,7 @@ export default async function HomePage() {
         /* ── 藍色縣市按鈕 ── */
         .city-btn-blue { border-color: #b8d0f0; color: #2a5298; }
         .city-btn-blue:hover { border-color: #2a5298; color: #2a5298; background: #f0f5ff; }
-        .sec-head-blue { font-family: 'Noto Serif TC', serif; font-size: 1rem; font-weight: 700; color: #2a5298; border-left: 4px solid #2a5298; padding: .6rem 1rem; background: #f0f5ff; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; }
+        .sec-head-blue { font-family: var(--font-noto-serif-tc), serif; font-size: 1rem; font-weight: 700; color: #2a5298; border-left: 4px solid #2a5298; padding: .6rem 1rem; background: #f0f5ff; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; }
         .sec-head-blue a { font-size: .78rem; font-weight: 400; color: #2a5298; text-decoration: none; }
         .sec-head-blue a:hover { text-decoration: underline; }
 
@@ -174,11 +173,17 @@ export default async function HomePage() {
         .footer p { font-size: .78rem; color: #bbb; font-weight: 300; line-height: 1.9; margin: 0; }
 
         @media (max-width: 640px) {
-          .channel-grid { grid-template-columns: 1fr 1fr; }
+          .channel-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+          .channel-card { padding: 1rem 1rem; }
+          .channel-label { font-size: .92rem; }
           .stats-inner  { grid-template-columns: 1fr 1fr; }
           .stat-cell:nth-child(2) { border-right: none; }
           .stat-cell:nth-child(3) { border-right: 1px solid #f0f0f0; }
           .card-grid { grid-template-columns: 1fr; }
+          /* 手機 nav：隱藏次要連結，避免溢出 */
+          .nav-hide-sm { display: none; }
+          .site-bar-inner { gap: .5rem; }
+          .nav-link { padding: .3rem .45rem; font-size: .78rem; }
         }
       `}</style>
 
@@ -214,9 +219,9 @@ export default async function HomePage() {
           <a href="/auction"  className="nav-link">法拍屋</a>
           <a href="/price"    className="nav-link blue">實價登錄</a>
           <a href="/presale"  className="nav-link" style={{ color: '#1a6b3a' }}>預售屋</a>
-          <a href="/land-readjustment"     className="nav-link" style={{ color: '#7b5ea7' }}>重劃區</a>
-          <a href="/special-properties"  className="nav-link" style={{ color: '#c2632a' }}>特殊物件</a>
-          <a href="/compare"             className="nav-link" style={{ color: '#2a5298' }}>比較</a>
+          <a href="/land-readjustment"    className="nav-link nav-hide-sm" style={{ color: '#7b5ea7' }}>重劃區</a>
+          <a href="/special-properties"  className="nav-link nav-hide-sm" style={{ color: '#c2632a' }}>特殊物件</a>
+          <a href="/compare"             className="nav-link nav-hide-sm" style={{ color: '#2a5298' }}>比較</a>
         </div>
       </header>
 
