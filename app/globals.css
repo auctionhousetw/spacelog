@@ -3,6 +3,8 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --font-noto-serif-tc: 'Noto Serif TC';
+  --font-noto-sans-tc: 'Noto Sans TC';
 }
 
 @theme inline {

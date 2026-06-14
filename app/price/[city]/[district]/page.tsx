@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { unstable_cache } from 'next/cache';
 import { PrismaClient } from '@prisma/client';
 
 const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
@@ -23,20 +24,132 @@ function statusColor(txType: string | null) {
   return { bg: '#f5f5f3', text: '#888', border: '#e8e8e4' };
 }
 
+// BigInt → number so unstable_cache can JSON-serialize the result
+function normRows(rows: any[]): any[] {
+  return rows.map(row =>
+    Object.fromEntries(
+      Object.entries(row).map(([k, v]) => [k, typeof v === 'bigint' ? Number(v) : v])
+    )
+  );
+}
+
+// 5 static queries cached per (city, district) for 24 h.
+// They don't depend on user filters, so one cache entry covers every filter combo.
+const getDistrictStaticData = unstable_cache(
+  async (city: string, district: string) => {
+    const isAll  = district === '全區';
+    const safeC  = city.replace(/'/g, "''");
+    const safeD  = district.replace(/'/g, "''");
+    const baseDW = `city='${safeC}'${!isAll ? ` AND district='${safeD}'` : ''}`;
+
+    const [metaRows, bldTypeRows, bldTypeStatsRows, roadStatsRows, yearTrendRows, priceRangeRows] =
+      await Promise.all([
+        prisma.$queryRawUnsafe<any[]>(
+          `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg
+           FROM lvr_land WHERE ${baseDW} AND tx_type LIKE '%建物%'`
+        ),
+        prisma.$queryRawUnsafe<any[]>(
+          `SELECT DISTINCT building_type FROM lvr_land
+           WHERE ${baseDW} AND building_type IS NOT NULL AND building_type != ''
+           ORDER BY building_type`
+        ),
+        prisma.$queryRawUnsafe<any[]>(
+          `SELECT building_type,
+                  COUNT(*) as n,
+                  AVG(CASE WHEN total_price > 0 THEN total_price END) as avg_price,
+                  AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit,
+                  MIN(CASE WHEN total_price > 0 THEN total_price END) as min_price,
+                  MAX(CASE WHEN total_price > 0 THEN total_price END) as max_price
+           FROM lvr_land
+           WHERE ${baseDW} AND tx_type LIKE '%建物%'
+             AND building_type IS NOT NULL AND building_type != ''
+             AND total_price > 0
+           GROUP BY building_type ORDER BY n DESC LIMIT 8`
+        ),
+        prisma.$queryRawUnsafe<any[]>(
+          `SELECT
+             CASE
+               WHEN STRPOS(address,'路') > 0
+                 AND (STRPOS(address,'街') = 0 OR STRPOS(address,'路') <= STRPOS(address,'街'))
+                 THEN SUBSTRING(address, 1, STRPOS(address,'路'))
+               WHEN STRPOS(address,'街') > 0
+                 THEN SUBSTRING(address, 1, STRPOS(address,'街'))
+               ELSE SUBSTRING(address, 1, 6)
+             END as road_name,
+             COUNT(*) as n,
+             AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit,
+             AVG(CASE WHEN total_price > 0 THEN total_price END) as avg_price
+           FROM lvr_land
+           WHERE ${baseDW} AND tx_type LIKE '%建物%'
+             AND address IS NOT NULL AND address != ''
+             AND unit_price_sqm > 0
+           GROUP BY CASE
+               WHEN STRPOS(address,'路') > 0
+                 AND (STRPOS(address,'街') = 0 OR STRPOS(address,'路') <= STRPOS(address,'街'))
+                 THEN SUBSTRING(address, 1, STRPOS(address,'路'))
+               WHEN STRPOS(address,'街') > 0
+                 THEN SUBSTRING(address, 1, STRPOS(address,'街'))
+               ELSE SUBSTRING(address, 1, 6)
+             END
+           HAVING COUNT(*) >= 2
+           ORDER BY avg_unit DESC LIMIT 10`
+        ),
+        prisma.$queryRawUnsafe<any[]>(
+          `SELECT
+             SUBSTRING(tx_date_iso, 1, 4) as year,
+             COUNT(*) as n,
+             AVG(CASE WHEN total_price > 0 THEN total_price END) as avg_price,
+             AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit
+           FROM lvr_land
+           WHERE ${baseDW} AND tx_type LIKE '%建物%'
+             AND tx_date_iso IS NOT NULL AND tx_date_iso != ''
+             AND total_price > 0
+           GROUP BY SUBSTRING(tx_date_iso, 1, 4)
+           HAVING SUBSTRING(tx_date_iso, 1, 4) >= '2020' AND SUBSTRING(tx_date_iso, 1, 4) <= '2030'
+           ORDER BY 1`
+        ),
+        prisma.$queryRawUnsafe<any[]>(
+          `SELECT
+             CASE
+               WHEN total_price < 3000000   THEN '300萬以下'
+               WHEN total_price < 5000000   THEN '300-500萬'
+               WHEN total_price < 10000000  THEN '500萬-1千萬'
+               WHEN total_price < 20000000  THEN '1千-2千萬'
+               WHEN total_price < 50000000  THEN '2千-5千萬'
+               ELSE '5千萬以上'
+             END as range_label,
+             MIN(total_price) as range_min,
+             COUNT(*) as n
+           FROM lvr_land
+           WHERE ${baseDW} AND tx_type LIKE '%建物%' AND total_price > 0
+           GROUP BY range_label ORDER BY range_min`
+        ),
+      ]);
+
+    const meta = normRows(metaRows)[0] ?? {};
+    return {
+      metaAvg: meta.avg ? Math.round(Number(meta.avg) / 10000) : 0,
+      metaN:   Number(meta.n || 0),
+      bldTypes:      bldTypeRows.map((r: any) => r.building_type).filter(Boolean),
+      bldTypeStats:  normRows(bldTypeStatsRows),
+      roadStats:     normRows(roadStatsRows).filter((r: any) => r.road_name && r.road_name.length >= 2),
+      yearTrend:     normRows(yearTrendRows),
+      priceRanges:   normRows(priceRangeRows),
+    };
+  },
+  ['district-static'],
+  { revalidate: 86400 }
+);
+
 export async function generateMetadata({ params }: { params: Params }) {
   const { city, district } = await params;
   const c = decodeURIComponent(city);
   const d = decodeURIComponent(district);
   let avg = 0, n = 0;
   try {
-    const safeC0 = c.replace(/'/g, "''");
-    const safeD0 = d.replace(/'/g, "''");
-    const rows = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg
-       FROM lvr_land WHERE city='${safeC0}' AND district='${safeD0}' AND tx_type LIKE '%建物%'`
-    );
-    avg = rows[0]?.avg ? Math.round(Number(rows[0].avg) / 10000) : 0;
-    n   = Number(rows[0]?.n || 0);
+    const { metaAvg, metaN } = await getDistrictStaticData(c, d);
+    avg = metaAvg;
+    n   = metaN;
   } catch { /* ignore */ }
   return {
     title: `${c}${d}實價登錄 | 各類型均價・路段行情・成交紀錄`,
@@ -78,7 +191,6 @@ export default async function LvrDistrictPage({
 
   const safeC = c.replace(/'/g, "''");
   const safeD = d.replace(/'/g, "''");
-  const baseDistWhere = `city='${safeC}'${!isAll ? ` AND district='${safeD}'` : ''}`;
 
   try {
     const conds = [`city = '${safeC}'`];
@@ -94,9 +206,10 @@ export default async function LvrDistrictPage({
       ? `CASE WHEN total_price IS NULL OR total_price=0 THEN 1 ELSE 0 END, total_price DESC`
       : `CASE WHEN tx_date_iso IS NULL OR tx_date_iso='' THEN 1 ELSE 0 END, tx_date_iso DESC`;
 
-    const [fetched, countRows, statsRows, bldTypeRows,
-           bldTypeStatsRows, roadStatsRows, yearTrendRows, priceRangeRows] = await Promise.all([
-      // 交易列表
+    const [staticData, fetched, countRows, statsRows] = await Promise.all([
+      // 靜態統計資料（city+district 固定，24h 快取）
+      getDistrictStaticData(c, d),
+      // 交易列表（依篩選條件動態查詢）
       prisma.$queryRawUnsafe<any[]>(
         `SELECT * FROM lvr_land WHERE ${where} ORDER BY ${orderBy} LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`
       ),
@@ -114,101 +227,16 @@ export default async function LvrDistrictPage({
                 MAX(tx_date_iso) as latest, MIN(tx_date_iso) as oldest
          FROM lvr_land WHERE ${where}`,
       ),
-      // 建物類型篩選器選項
-      prisma.$queryRawUnsafe<any[]>(
-        `SELECT DISTINCT building_type FROM lvr_land
-         WHERE ${baseDistWhere} AND building_type IS NOT NULL AND building_type != ''
-         ORDER BY building_type`,
-      ),
-      // 建物類型均價比較（不受篩選影響，固定顯示全區）
-      prisma.$queryRawUnsafe<any[]>(
-        `SELECT building_type,
-                COUNT(*) as n,
-                AVG(CASE WHEN total_price > 0 THEN total_price END) as avg_price,
-                AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit,
-                MIN(CASE WHEN total_price > 0 THEN total_price END) as min_price,
-                MAX(CASE WHEN total_price > 0 THEN total_price END) as max_price
-         FROM lvr_land
-         WHERE ${baseDistWhere} AND tx_type LIKE '%建物%'
-           AND building_type IS NOT NULL AND building_type != ''
-           AND total_price > 0
-         GROUP BY building_type
-         ORDER BY n DESC
-         LIMIT 8`,
-      ),
-      // 熱門路段均價（取地址中路/街名稱）
-      prisma.$queryRawUnsafe<any[]>(
-        `SELECT
-           CASE
-             WHEN STRPOS(address,'路') > 0
-               AND (STRPOS(address,'街') = 0 OR STRPOS(address,'路') <= STRPOS(address,'街'))
-               THEN SUBSTRING(address, 1, STRPOS(address,'路'))
-             WHEN STRPOS(address,'街') > 0
-               THEN SUBSTRING(address, 1, STRPOS(address,'街'))
-             ELSE SUBSTRING(address, 1, 6)
-           END as road_name,
-           COUNT(*) as n,
-           AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit,
-           AVG(CASE WHEN total_price > 0 THEN total_price END) as avg_price
-         FROM lvr_land
-         WHERE ${baseDistWhere} AND tx_type LIKE '%建物%'
-           AND address IS NOT NULL AND address != ''
-           AND unit_price_sqm > 0
-         GROUP BY CASE
-             WHEN STRPOS(address,'路') > 0
-               AND (STRPOS(address,'街') = 0 OR STRPOS(address,'路') <= STRPOS(address,'街'))
-               THEN SUBSTRING(address, 1, STRPOS(address,'路'))
-             WHEN STRPOS(address,'街') > 0
-               THEN SUBSTRING(address, 1, STRPOS(address,'街'))
-             ELSE SUBSTRING(address, 1, 6)
-           END
-         HAVING COUNT(*) >= 2
-         ORDER BY avg_unit DESC
-         LIMIT 10`,
-      ),
-      // 年度均價趨勢（按年分組，建物交易）
-      prisma.$queryRawUnsafe<any[]>(
-        `SELECT
-           SUBSTRING(tx_date_iso, 1, 4) as year,
-           COUNT(*) as n,
-           AVG(CASE WHEN total_price > 0 THEN total_price END) as avg_price,
-           AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit
-         FROM lvr_land
-         WHERE ${baseDistWhere} AND tx_type LIKE '%建物%'
-           AND tx_date_iso IS NOT NULL AND tx_date_iso != ''
-           AND total_price > 0
-         GROUP BY SUBSTRING(tx_date_iso, 1, 4)
-         HAVING SUBSTRING(tx_date_iso, 1, 4) >= '2020' AND SUBSTRING(tx_date_iso, 1, 4) <= '2030'
-         ORDER BY 1`,
-      ),
-      // 成交總價分布
-      prisma.$queryRawUnsafe<any[]>(
-        `SELECT
-           CASE
-             WHEN total_price < 3000000   THEN '300萬以下'
-             WHEN total_price < 5000000   THEN '300-500萬'
-             WHEN total_price < 10000000  THEN '500萬-1千萬'
-             WHEN total_price < 20000000  THEN '1千-2千萬'
-             WHEN total_price < 50000000  THEN '2千-5千萬'
-             ELSE '5千萬以上'
-           END as range_label,
-           MIN(total_price) as range_min,
-           COUNT(*) as n
-         FROM lvr_land
-         WHERE ${baseDistWhere} AND tx_type LIKE '%建物%' AND total_price > 0
-         GROUP BY range_label
-         ORDER BY range_min`,
-      ),
     ]);
 
     if (!statsRows[0] || Number(statsRows[0].n) === 0) notFound();
     totalCount    = Number(countRows[0].n);
     distStats     = statsRows[0];
-    bldTypes      = bldTypeRows.map((r: any) => r.building_type).filter(Boolean);
-    bldTypeStats  = bldTypeStatsRows;
-    roadStats     = roadStatsRows.filter((r: any) => r.road_name && r.road_name.length >= 2);
-    yearTrend     = yearTrendRows;
-    priceRanges   = priceRangeRows;
+    bldTypes      = staticData.bldTypes;
+    bldTypeStats  = staticData.bldTypeStats;
+    roadStats     = staticData.roadStats;
+    yearTrend     = staticData.yearTrend;
+    priceRanges   = staticData.priceRanges;
 
     // 同地址歷年成交：批次查詢當前頁面所有地址的歷史記錄
     const addrs = [...new Set(fetched.map((r: any) => r.address).filter(Boolean))] as string[];
@@ -265,21 +293,20 @@ export default async function LvrDistrictPage({
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&family=Noto+Sans+TC:wght@300;400;500&display=swap');
         *, *::before, *::after { box-sizing: border-box; }
-        body { margin: 0; background: #f7f6f3; font-family: 'Noto Sans TC', sans-serif; color: #333; }
+        body { margin: 0; background: #f7f6f3; font-family: var(--font-noto-sans-tc), sans-serif; color: #333; }
 
         .site-bar { background: #fff; border-bottom: 1px solid #ececec; position: sticky; top: 0; z-index: 100; }
         .site-bar-inner { max-width: 1200px; margin: 0 auto; padding: 0 clamp(1rem,3vw,2rem); display: flex; align-items: center; gap: 1.5rem; height: 52px; }
-        .site-logo { font-family: 'Noto Serif TC', serif; font-size: 1.05rem; font-weight: 700; color: #c2632a; text-decoration: none; flex-shrink: 0; }
-        .site-logo span { font-size: .72rem; font-weight: 400; color: #aaa; margin-left: 6px; font-family: 'Noto Sans TC', sans-serif; }
+        .site-logo { font-family: var(--font-noto-serif-tc), serif; font-size: 1.05rem; font-weight: 700; color: #c2632a; text-decoration: none; flex-shrink: 0; }
+        .site-logo span { font-size: .72rem; font-weight: 400; color: #aaa; margin-left: 6px; font-family: var(--font-noto-sans-tc), sans-serif; }
         .nav-link { font-size: .82rem; color: #888; text-decoration: none; padding: .3rem .7rem; border-radius: 2px; transition: all .15s; }
         .nav-link:hover { color: #c2632a; background: #fff8f4; }
         .nav-link.blue { color: #2a5298; }
 
         .hero { background: #fff; border-top: 3px solid #2a5298; border-bottom: 1px solid #ececec; padding: 1.1rem clamp(1rem,3vw,2rem); }
         .hero-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
-        .hero-h1 { font-family: 'Noto Serif TC', serif; font-size: 1.2rem; font-weight: 700; color: #1e3a6e; }
+        .hero-h1 { font-family: var(--font-noto-serif-tc), serif; font-size: 1.2rem; font-weight: 700; color: #1e3a6e; }
         .hero-sub { font-size: .82rem; color: #aaa; font-weight: 300; }
         .hero-stat { font-size: .82rem; color: #2a5298; font-weight: 400; margin-left: auto; }
 
@@ -301,9 +328,9 @@ export default async function LvrDistrictPage({
 
         .price-range { padding: .6rem 1rem .85rem; display: flex; flex-direction: column; gap: 6px; }
         .price-row { display: flex; align-items: center; gap: 5px; }
-        .price-input { flex: 1; min-width: 0; padding: .28rem .45rem; font-size: .78rem; border: 1px solid #e0e8f8; outline: none; font-family: 'Noto Sans TC', sans-serif; color: #444; background: #fafafa; }
+        .price-input { flex: 1; min-width: 0; padding: .28rem .45rem; font-size: .78rem; border: 1px solid #e0e8f8; outline: none; font-family: var(--font-noto-sans-tc), sans-serif; color: #444; background: #fafafa; }
         .price-input:focus { border-color: #2a5298; }
-        .price-btn { display: block; width: 100%; padding: .36rem 0; font-size: .76rem; font-weight: 500; text-align: center; background: #2a5298; color: #fff; border: none; cursor: pointer; font-family: 'Noto Sans TC', sans-serif; margin-top: 2px; }
+        .price-btn { display: block; width: 100%; padding: .36rem 0; font-size: .76rem; font-weight: 500; text-align: center; background: #2a5298; color: #fff; border: none; cursor: pointer; font-family: var(--font-noto-sans-tc), sans-serif; margin-top: 2px; }
         .price-btn:hover { background: #1e3a6e; }
 
         .sort-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
@@ -313,7 +340,7 @@ export default async function LvrDistrictPage({
 
         .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 8px; background: #fff; border: 1px solid #e0e8f8; padding: 1rem 1.25rem; margin-bottom: 1rem; }
         .stat-item { text-align: center; }
-        .stat-val { font-family: 'Noto Serif TC', serif; font-size: 1.25rem; font-weight: 700; color: #2a5298; }
+        .stat-val { font-family: var(--font-noto-serif-tc), serif; font-size: 1.25rem; font-weight: 700; color: #2a5298; }
         .stat-label { font-size: .72rem; color: #aaa; font-weight: 300; }
 
         .card-list { display: flex; flex-direction: column; gap: 1px; }
@@ -322,13 +349,13 @@ export default async function LvrDistrictPage({
         .card-body { padding: .85rem 1rem; min-width: 0; }
         .card-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: .4rem; }
         .badge { font-size: 10px; font-weight: 500; letter-spacing: .04em; padding: .17rem .5rem; }
-        .card-addr { font-family: 'Noto Serif TC', serif; font-size: .88rem; font-weight: 500; color: #333; line-height: 1.6; margin-bottom: .3rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+        .card-addr { font-family: var(--font-noto-serif-tc), serif; font-size: .88rem; font-weight: 500; color: #333; line-height: 1.6; margin-bottom: .3rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
         .card-meta { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .75rem; color: #999; }
         .card-meta strong { color: #555; font-weight: 400; }
         .card-date { font-size: .72rem; color: #bbb; font-weight: 300; margin-top: .4rem; }
         .price-col { padding: .85rem 1.1rem; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; border-left: 1px solid #f0f5ff; min-width: 100px; flex-shrink: 0; gap: .25rem; }
         .price-label { font-size: 9.5px; color: #aaa; letter-spacing: .08em; }
-        .price-val { font-family: 'Noto Serif TC', serif; font-size: 1.3rem; font-weight: 700; color: #2a5298; line-height: 1.2; }
+        .price-val { font-family: var(--font-noto-serif-tc), serif; font-size: 1.3rem; font-weight: 700; color: #2a5298; line-height: 1.2; }
         .price-val small { font-size: .68rem; font-weight: 400; color: #2a5298; margin-left: 2px; }
         .price-unit { font-size: .75rem; color: #aaa; font-weight: 300; }
 
@@ -338,10 +365,46 @@ export default async function LvrDistrictPage({
         .page-btn.active { background: #2a5298; color: #fff; border-color: #2a5298; }
         .page-btn.disabled { color: #ddd; border-color: #f0f0f0; pointer-events: none; }
 
+        .price-mobile { display: none; }
+
+        /* 桌機：sidebar-details 一律展開（覆蓋 details 預設收折） */
+        .sidebar-toggle { display: none; }
+        .sidebar-details > :not(summary) { display: block; }
+
+        /* 平板（769px–1024px）：sidebar 縮窄，統計列改 2 欄 */
+        @media(min-width:769px) and (max-width:1024px) {
+          .layout { grid-template-columns: 160px 1fr; gap: 1rem; padding: 1rem; }
+          .sidebar { top: 56px; }
+          .sb-head { font-size: 8.5px; }
+          .filter-opt { font-size: .75rem; padding: .38rem .8rem; }
+          .stats-bar { grid-template-columns: repeat(2, 1fr); }
+          .card-addr { font-size: .82rem; }
+          .price-val { font-size: 1.1rem; }
+          .price-col { min-width: 85px; padding: .7rem .8rem; }
+        }
+
         @media(max-width:768px) {
           .layout { grid-template-columns: 1fr; }
-          .sidebar { position: static; }
+          /* 主內容優先，sidebar 排到最後 */
+          .sidebar { position: static; order: 2; margin-top: .5rem; }
+          .layout > main { order: 1; }
           .price-col { display: none; }
+          .price-mobile {
+            display: flex; align-items: baseline; gap: 6px;
+            margin-bottom: .35rem;
+          }
+          /* 手機：顯示收合按鈕，讓 details 回歸原生行為 */
+          .sidebar-toggle {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: .7rem 1rem; font-size: .85rem; font-weight: 500;
+            color: #2a5298; cursor: pointer; list-style: none;
+            background: #f0f5ff; border-bottom: 1px solid #e0e8f8;
+          }
+          .sidebar-toggle::-webkit-details-marker { display: none; }
+          .sidebar-toggle::marker { content: ''; }
+          .sidebar-toggle::after { content: '▾'; margin-left: auto; font-size: .9rem; }
+          .sidebar-details[open] .sidebar-toggle::after { content: '▴'; }
+          .sidebar-details > :not(summary) { display: revert; }
         }
       `}</style>
 
@@ -385,89 +448,96 @@ export default async function LvrDistrictPage({
 
         {/* ── 左側篩選 ── */}
         <aside className="sidebar">
+          <details className="sidebar-details">
+            <summary className="sidebar-toggle">
+              篩選條件
+              {(txType || bldType || priceMin || priceMax) && (
+                <span style={{ fontSize: '.7rem', background: '#2a5298', color: '#fff', padding: '.1rem .5rem', borderRadius: 10, marginLeft: 8 }}>已篩選</span>
+              )}
+            </summary>
 
-          {/* 麵包屑 */}
-          <div style={{ padding: '.8rem 1rem', borderBottom: '1px solid #f0f5ff', fontSize: 11, lineHeight: 1.9 }}>
-            <a href="/price" style={{ color: '#2a5298', textDecoration: 'none' }}>實價登錄</a>
-            <span style={{ color: '#ccc', margin: '0 4px' }}>›</span>
-            <a href={`/price/${encodeURIComponent(c)}`} style={{ color: '#2a5298', textDecoration: 'none' }}>{c}</a>
-            {!isAll && <><span style={{ color: '#ccc', margin: '0 4px' }}>›</span><span style={{ color: '#666' }}>{d}</span></>}
-          </div>
+            {/* 麵包屑 */}
+            <div style={{ padding: '.8rem 1rem', borderBottom: '1px solid #f0f5ff', fontSize: 11, lineHeight: 1.9 }}>
+              <a href="/price" style={{ color: '#2a5298', textDecoration: 'none' }}>實價登錄</a>
+              <span style={{ color: '#ccc', margin: '0 4px' }}>›</span>
+              <a href={`/price/${encodeURIComponent(c)}`} style={{ color: '#2a5298', textDecoration: 'none' }}>{c}</a>
+              {!isAll && <><span style={{ color: '#ccc', margin: '0 4px' }}>›</span><span style={{ color: '#666' }}>{d}</span></>}
+            </div>
 
-          {/* 交易類型 */}
-          <div className="sb-section">
-            <div className="sb-head">交易類型</div>
-            <a href={q({ txType: '', page: 1 })} className={`filter-opt${!txType ? ' active' : ''}`}>
-              <span className="filter-dot" />全部
-            </a>
-            <a href={q({ txType: 'building', page: 1 })} className={`filter-opt${txType === 'building' ? ' active' : ''}`}>
-              <span className="filter-dot" />建物交易
-            </a>
-            <a href={q({ txType: 'land', page: 1 })} className={`filter-opt${txType === 'land' ? ' active' : ''}`}>
-              <span className="filter-dot" />土地交易
-            </a>
-          </div>
-
-          {/* 建物型態 */}
-          {bldTypes.length > 0 && (
+            {/* 交易類型 */}
             <div className="sb-section">
-              <div className="sb-head">建物型態</div>
-              <a href={q({ bldType: '', page: 1 })} className={`filter-opt${!bldType ? ' active' : ''}`}>
+              <div className="sb-head">交易類型</div>
+              <a href={q({ txType: '', page: 1 })} className={`filter-opt${!txType ? ' active' : ''}`}>
                 <span className="filter-dot" />全部
               </a>
-              {bldTypes.slice(0, 8).map(bt => (
-                <a key={bt} href={q({ bldType: bt, page: 1 })} className={`filter-opt${bldType === bt ? ' active' : ''}`}>
-                  <span className="filter-dot" />{bt}
-                </a>
-              ))}
+              <a href={q({ txType: 'building', page: 1 })} className={`filter-opt${txType === 'building' ? ' active' : ''}`}>
+                <span className="filter-dot" />建物交易
+              </a>
+              <a href={q({ txType: 'land', page: 1 })} className={`filter-opt${txType === 'land' ? ' active' : ''}`}>
+                <span className="filter-dot" />土地交易
+              </a>
             </div>
-          )}
 
-          {/* 價格區間 */}
-          <div className="sb-section">
-            <div className="sb-head">總價區間（萬）</div>
-            {[
-              { label: '不限',         min: '',     max: ''      },
-              { label: '500 萬以下',    min: '',     max: '500'   },
-              { label: '500–1,000 萬',  min: '500',  max: '1000'  },
-              { label: '1,000–2,000 萬',min: '1000', max: '2000'  },
-              { label: '2,000 萬以上',  min: '2000', max: ''      },
-            ].map(opt => {
-              const isActive =
-                (priceMin === null ? '' : String(priceMin)) === opt.min &&
-                (priceMax === null ? '' : String(priceMax)) === opt.max;
-              return (
-                <a key={opt.label}
-                  href={q({ priceMin: opt.min || undefined, priceMax: opt.max || undefined, page: 1 })}
-                  className={`filter-opt${isActive ? ' active' : ''}`}>
-                  <span className="filter-dot" />{opt.label}
+            {/* 建物型態 */}
+            {bldTypes.length > 0 && (
+              <div className="sb-section">
+                <div className="sb-head">建物型態</div>
+                <a href={q({ bldType: '', page: 1 })} className={`filter-opt${!bldType ? ' active' : ''}`}>
+                  <span className="filter-dot" />全部
                 </a>
-              );
-            })}
-            <form className="price-range" action={`/price/${encodeURIComponent(c)}/${encodeURIComponent(d)}`} method="get">
-              <input type="hidden" name="txType"  value={txType} />
-              <input type="hidden" name="bldType" value={bldType} />
-              <input type="hidden" name="sort"    value={sort} />
-              <div className="price-row">
-                <input className="price-input" type="number" name="priceMin" placeholder="最低" defaultValue={priceMin ?? ''} min={0} />
-                <span style={{ color: '#ccc', fontSize: '.7rem' }}>–</span>
-                <input className="price-input" type="number" name="priceMax" placeholder="最高" defaultValue={priceMax ?? ''} min={0} />
+                {bldTypes.slice(0, 8).map(bt => (
+                  <a key={bt} href={q({ bldType: bt, page: 1 })} className={`filter-opt${bldType === bt ? ' active' : ''}`}>
+                    <span className="filter-dot" />{bt}
+                  </a>
+                ))}
               </div>
-              <button type="submit" className="price-btn">套用</button>
-            </form>
-          </div>
+            )}
 
-          {/* 排序 */}
-          <div className="sb-section">
-            <div className="sb-head">排序</div>
-            <a href={q({ sort: 'date', page: 1 })} className={`filter-opt${sort === 'date' ? ' active' : ''}`}>
-              <span className="filter-dot" />依成交日期
-            </a>
-            <a href={q({ sort: 'price', page: 1 })} className={`filter-opt${sort === 'price' ? ' active' : ''}`}>
-              <span className="filter-dot" />依總價 ↓
-            </a>
-          </div>
+            {/* 價格區間 */}
+            <div className="sb-section">
+              <div className="sb-head">總價區間（萬）</div>
+              {[
+                { label: '不限',         min: '',     max: ''      },
+                { label: '500 萬以下',    min: '',     max: '500'   },
+                { label: '500–1,000 萬',  min: '500',  max: '1000'  },
+                { label: '1,000–2,000 萬',min: '1000', max: '2000'  },
+                { label: '2,000 萬以上',  min: '2000', max: ''      },
+              ].map(opt => {
+                const isActive =
+                  (priceMin === null ? '' : String(priceMin)) === opt.min &&
+                  (priceMax === null ? '' : String(priceMax)) === opt.max;
+                return (
+                  <a key={opt.label}
+                    href={q({ priceMin: opt.min || undefined, priceMax: opt.max || undefined, page: 1 })}
+                    className={`filter-opt${isActive ? ' active' : ''}`}>
+                    <span className="filter-dot" />{opt.label}
+                  </a>
+                );
+              })}
+              <form className="price-range" action={`/price/${encodeURIComponent(c)}/${encodeURIComponent(d)}`} method="get">
+                <input type="hidden" name="txType"  value={txType} />
+                <input type="hidden" name="bldType" value={bldType} />
+                <input type="hidden" name="sort"    value={sort} />
+                <div className="price-row">
+                  <input className="price-input" type="number" name="priceMin" placeholder="最低" defaultValue={priceMin ?? ''} min={0} />
+                  <span style={{ color: '#ccc', fontSize: '.7rem' }}>–</span>
+                  <input className="price-input" type="number" name="priceMax" placeholder="最高" defaultValue={priceMax ?? ''} min={0} />
+                </div>
+                <button type="submit" className="price-btn">套用</button>
+              </form>
+            </div>
 
+            {/* 排序 */}
+            <div className="sb-section">
+              <div className="sb-head">排序</div>
+              <a href={q({ sort: 'date', page: 1 })} className={`filter-opt${sort === 'date' ? ' active' : ''}`}>
+                <span className="filter-dot" />依成交日期
+              </a>
+              <a href={q({ sort: 'price', page: 1 })} className={`filter-opt${sort === 'price' ? ' active' : ''}`}>
+                <span className="filter-dot" />依總價 ↓
+              </a>
+            </div>
+          </details>
         </aside>
 
         {/* ── 右側主區 ── */}
@@ -506,15 +576,16 @@ export default async function LvrDistrictPage({
             return (
               <div style={{ background: '#fff', border: '1px solid #e0e8f8', marginBottom: '1rem', overflow: 'hidden' }}>
                 <div style={{ background: '#f0f5ff', padding: '.6rem 1rem', borderBottom: '1px solid #e0e8f8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '.92rem', fontWeight: 700, color: '#2a5298' }}>
+                  <span style={{ fontFamily: "var(--font-noto-serif-tc), serif", fontSize: '.92rem', fontWeight: 700, color: '#2a5298' }}>
                     歷年均價走勢
                   </span>
                   <span style={{ fontSize: '.72rem', color: '#8aabdf' }}>
                     {yearTrend[0]?.year}～{yearTrend[yearTrend.length - 1]?.year} · 建物交易
                   </span>
                 </div>
-                {/* 走勢圖：用純 CSS 長條圖 */}
-                <div style={{ padding: '1rem 1rem .75rem', display: 'flex', alignItems: 'flex-end', gap: 8, minHeight: 120 }}>
+                {/* 走勢圖：橫向可捲動，避免多年份在手機上溢出 */}
+                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <div style={{ padding: '1rem 1rem .75rem', display: 'flex', alignItems: 'flex-end', gap: 8, minHeight: 120, minWidth: `${yearTrend.length * 56}px` }}>
                   {yearTrend.map((r: any) => {
                     const avgW  = r.avg_price ? Math.round(Number(r.avg_price) / 10000) : null;
                     const unitW = r.avg_unit  ? unitSqmToWanPerPing(Number(r.avg_unit)).toFixed(1) : null;
@@ -535,6 +606,7 @@ export default async function LvrDistrictPage({
                     );
                   })}
                 </div>
+                </div>{/* /scroll container */}
                 {/* 趨勢說明 */}
                 {(() => {
                   const first = yearTrend[0];
@@ -561,7 +633,7 @@ export default async function LvrDistrictPage({
           {bldTypeStats.length > 0 && (
             <div style={{ background: '#fff', border: '1px solid #e0e8f8', marginBottom: '1rem', overflow: 'hidden' }}>
               <div style={{ background: '#f0f5ff', padding: '.6rem 1rem', borderBottom: '1px solid #e0e8f8' }}>
-                <span style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '.92rem', fontWeight: 700, color: '#2a5298' }}>
+                <span style={{ fontFamily: "var(--font-noto-serif-tc), serif", fontSize: '.92rem', fontWeight: 700, color: '#2a5298' }}>
                   各建物類型均價比較
                 </span>
                 <span style={{ fontSize: '.72rem', color: '#8aabdf', marginLeft: 8 }}>全區・建物交易</span>
@@ -580,7 +652,7 @@ export default async function LvrDistrictPage({
                         {r.building_type}
                         <span style={{ color: '#aaa', fontWeight: 300, marginLeft: 4 }}>({Number(r.n)} 筆)</span>
                       </div>
-                      <div style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '1.15rem', fontWeight: 700, color: '#1e3a6e' }}>
+                      <div style={{ fontFamily: "var(--font-noto-serif-tc), serif", fontSize: '1.15rem', fontWeight: 700, color: '#1e3a6e' }}>
                         {avgW ? `${avgW.toLocaleString()} 萬` : '—'}
                       </div>
                       {unitW && <div style={{ fontSize: '.72rem', color: '#6b8cc7', marginTop: '.2rem' }}>{unitW} 萬/坪</div>}
@@ -600,7 +672,7 @@ export default async function LvrDistrictPage({
           {roadStats.length > 0 && (
             <div style={{ background: '#fff', border: '1px solid #e0e8f8', marginBottom: '1rem', overflow: 'hidden' }}>
               <div style={{ background: '#f0f5ff', padding: '.6rem 1rem', borderBottom: '1px solid #e0e8f8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '.92rem', fontWeight: 700, color: '#2a5298' }}>
+                <span style={{ fontFamily: "var(--font-noto-serif-tc), serif", fontSize: '.92rem', fontWeight: 700, color: '#2a5298' }}>
                   熱門路段均價排行
                 </span>
                 <span style={{ fontSize: '.72rem', color: '#8aabdf' }}>建物交易・單價萬/坪</span>
@@ -641,7 +713,7 @@ export default async function LvrDistrictPage({
           {priceRanges.length > 0 && (
             <div style={{ background: '#fff', border: '1px solid #e0e8f8', marginBottom: '1rem', overflow: 'hidden' }}>
               <div style={{ background: '#f0f5ff', padding: '.6rem 1rem', borderBottom: '1px solid #e0e8f8' }}>
-                <span style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '.92rem', fontWeight: 700, color: '#2a5298' }}>
+                <span style={{ fontFamily: "var(--font-noto-serif-tc), serif", fontSize: '.92rem', fontWeight: 700, color: '#2a5298' }}>
                   成交總價分布
                 </span>
               </div>
@@ -707,6 +779,14 @@ export default async function LvrDistrictPage({
                         </span>
                       )}
                     </div>
+                    {priceWan !== null && (
+                      <div className="price-mobile">
+                        <span style={{ fontFamily: 'var(--font-noto-serif-tc), serif', fontSize: '1.1rem', fontWeight: 700, color: '#2a5298' }}>
+                          {priceWan}<span style={{ fontSize: '.68rem', fontWeight: 400 }}>萬</span>
+                        </span>
+                        {unitWan && <span style={{ fontSize: '.72rem', color: '#aaa' }}>{unitWan} 萬/坪</span>}
+                      </div>
+                    )}
                     <div className="card-addr">{r.address || '（地號）'}</div>
                     <div className="card-meta">
                       {r.district && <span>📍 {r.district}</span>}
@@ -806,7 +886,7 @@ export default async function LvrDistrictPage({
           {/* 同區預售屋入口 */}
           <div style={{ background: '#f0fdf4', border: '1px solid #d1e8d8', padding: '1rem 1.25rem', marginTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div>
-              <div style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '.88rem', fontWeight: 700, color: '#1a6b3a' }}>
+              <div style={{ fontFamily: "var(--font-noto-serif-tc), serif", fontSize: '.88rem', fontWeight: 700, color: '#1a6b3a' }}>
                 {!isAll ? `${d} 預售屋成交行情` : `${c} 預售屋成交行情`}
               </div>
               <div style={{ fontSize: '.72rem', color: '#aaa', marginTop: '.2rem' }}>查看本區建案成交記錄與均價走勢</div>
