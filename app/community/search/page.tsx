@@ -19,13 +19,44 @@ export default async function CommunitySearchPage({ searchParams }: { searchPara
   let addrResults: { city: string; district: string; addr: string; n: number }[] = [];
   let projectResults: { city: string; district: string; project_name: string; n: number; avg_price: number | null }[] = [];
 
-  // 偵測「縣市＋行政區」格式（如：台中市烏日區），直接跳轉到實價登錄頁
+  // ── 關鍵字前處理 ────────────────────────────────────────────────────────────
+  // 1. 「縣市＋行政區」格式 → 直接跳轉實價登錄頁（如：台中市烏日區）
   if (keyword) {
     const districtMatch = keyword.match(/^([^\s市縣]+[市縣])([^\s市縣]+[區鄉鎮市])$/)
     if (districtMatch) {
       redirect(`/price/${encodeURIComponent(districtMatch[1])}/${encodeURIComponent(districtMatch[2])}`)
     }
   }
+
+  // 2. 偵測縣市前綴（如：台中市公益路 → city=台中市, searchAddr=公益路）
+  //    解決地址欄位為「台中市西區公益路...」時 LIKE '%台中市公益路%' 比對不到的問題
+  const ALL_CITIES = [
+    '台北市','臺北市','新北市','桃園市','台中市','臺中市',
+    '台南市','臺南市','高雄市','基隆市','新竹市','嘉義市',
+    '苗栗縣','彰化縣','南投縣','雲林縣','嘉義縣','屏東縣',
+    '宜蘭縣','花蓮縣','台東縣','臺東縣','澎湖縣','金門縣','連江縣','新竹縣',
+  ]
+  let searchAddr = keyword
+  let cityFilter = ''
+  if (keyword) {
+    for (const c of ALL_CITIES) {
+      if (keyword.startsWith(c)) {
+        cityFilter  = c.replace(/^臺/, '台')   // 統一用台
+        searchAddr  = keyword.slice(c.length).trim()
+        break
+      }
+    }
+    // 只輸入縣市名（無路名）→ 跳到縣市實價登錄列表
+    if (cityFilter && !searchAddr) {
+      redirect(`/price/${encodeURIComponent(cityFilter)}`)
+    }
+  }
+
+  // cityClause：若有城市前綴，額外加 city 欄位篩選（台/臺 兩種寫法）
+  const safeCityFilter = cityFilter.replace(/'/g, "''")
+  const cityClause = cityFilter
+    ? `AND (city='${safeCityFilter}' OR city='${safeCityFilter.replace(/^台/, '臺')}')`
+    : ''
 
   if (keyword) {
     try {
@@ -37,7 +68,7 @@ export default async function CommunitySearchPage({ searchParams }: { searchPara
                        ELSE address END as addr,
                   COUNT(*) as n
            FROM lvr_land
-           WHERE address LIKE $1 AND tx_type LIKE '%建物%' AND total_price > 0
+           WHERE address LIKE $1 ${cityClause} AND tx_type LIKE '%建物%' AND total_price > 0
              AND city IS NOT NULL AND district IS NOT NULL
              AND address IS NOT NULL AND address != ''
            GROUP BY city, district,
@@ -46,7 +77,7 @@ export default async function CommunitySearchPage({ searchParams }: { searchPara
                          ELSE address END
            ORDER BY n DESC
            LIMIT 50`,
-          `%${keyword}%`
+          `%${searchAddr}%`
         ).then(rows => {
           // 合併同一棟樓因地址格式不同（台中市前綴 / 無前綴 / 臺中市前綴）而產生的重複條目
           const map = new Map<string, { city: string; district: string; addr: string; n: number }>();
