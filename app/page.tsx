@@ -91,6 +91,7 @@ export default async function HomePage() {
 
         /* ── Header ── */
         .site-bar { background: #fff; border-bottom: 1px solid #ececec; position: sticky; top: 0; z-index: 100; }
+        .nav-more { display: none; }  /* 桌機隱藏漢堡 */
         .site-bar-inner { max-width: 1200px; margin: 0 auto; padding: 0 clamp(1rem,3vw,2rem); display: flex; align-items: center; gap: 1rem; height: 52px; }
         .site-logo { font-family: var(--font-noto-serif-tc), serif; font-size: 1.05rem; font-weight: 700; color: #c2632a; text-decoration: none; flex-shrink: 0; }
         .site-logo span { font-size: .72rem; font-weight: 400; color: #aaa; margin-left: 6px; }
@@ -180,10 +181,32 @@ export default async function HomePage() {
           .stat-cell:nth-child(2) { border-right: none; }
           .stat-cell:nth-child(3) { border-right: 1px solid #f0f0f0; }
           .card-grid { grid-template-columns: 1fr; }
-          /* 手機 nav：隱藏次要連結，避免溢出 */
+          /* 手機 nav */
           .nav-hide-sm { display: none; }
           .site-bar-inner { gap: .5rem; }
           .nav-link { padding: .3rem .45rem; font-size: .78rem; }
+          /* 漢堡展開選單 */
+          .nav-more { display: block; margin-left: auto; position: relative; }
+          .nav-hamburger {
+            display: flex; align-items: center; justify-content: center;
+            width: 34px; height: 34px; cursor: pointer; list-style: none;
+            color: #666; font-size: 1.15rem; border: 1px solid #ececec;
+            border-radius: 3px; background: #fff; user-select: none;
+          }
+          .nav-hamburger::-webkit-details-marker { display: none; }
+          .nav-hamburger::marker { content: ''; }
+          .nav-dropdown {
+            position: fixed; right: 12px; top: 54px;
+            background: #fff; border: 1px solid #e0e0e0;
+            box-shadow: 0 6px 24px rgba(0,0,0,.13);
+            min-width: 140px; z-index: 500; border-radius: 4px; overflow: hidden;
+          }
+          .nav-dd-link {
+            display: block; padding: .8rem 1.1rem; font-size: .88rem;
+            text-decoration: none; color: #444;
+            border-bottom: 1px solid #f3f3f3;
+          }
+          .nav-dd-link:last-child { border-bottom: none; }
         }
       `}</style>
 
@@ -222,6 +245,15 @@ export default async function HomePage() {
           <a href="/land-readjustment"    className="nav-link nav-hide-sm" style={{ color: '#7b5ea7' }}>重劃區</a>
           <a href="/special-properties"  className="nav-link nav-hide-sm" style={{ color: '#c2632a' }}>特殊物件</a>
           <a href="/compare"             className="nav-link nav-hide-sm" style={{ color: '#2a5298' }}>比較</a>
+          {/* 手機漢堡：點擊展開次要連結 */}
+          <details className="nav-more">
+            <summary className="nav-hamburger">☰</summary>
+            <div className="nav-dropdown">
+              <a href="/land-readjustment"   className="nav-dd-link" style={{ color: '#7b5ea7' }}>🗺️ 重劃區</a>
+              <a href="/special-properties"  className="nav-dd-link" style={{ color: '#c2632a' }}>⭐ 特殊物件</a>
+              <a href="/compare"             className="nav-dd-link" style={{ color: '#2a5298' }}>📊 比較</a>
+            </div>
+          </details>
         </div>
       </header>
 
