@@ -158,7 +158,7 @@ export default async function HomePage() {
         .city-btn .n { float: right; font-size: .7rem; color: #ccc; font-weight: 300; }
 
         /* ── 地址搜尋框 ── */
-        .addr-search-wrap { max-width: 560px; margin: 1.75rem auto 0; }
+        .addr-search-wrap { max-width: 560px; width: 100%; margin: 1.75rem auto 0; overflow: hidden; }
         .addr-search-label { font-size: .76rem; color: #aaa; font-weight: 300; margin-bottom: .5rem; letter-spacing: .04em; }
 
         /* ── 藍色縣市按鈕 ── */
