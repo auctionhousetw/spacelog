@@ -6,6 +6,8 @@ declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSin
 const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
 
+export const revalidate = 1800; // ISR：30 分鐘背景重建，避免 Neon cold start 影響 FCP
+
 export const metadata = {
   title: '法拍屋・實價登錄 | 全台房地產資訊平台',
   description: '全台最完整的法拍屋查詢與實價登錄資料庫。瀏覽最新開標資訊、底價分析、周邊成交行情，一站掌握台灣房地產市場。',
