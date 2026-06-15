@@ -1,32 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Noto_Serif_TC, Noto_Sans_TC } from "next/font/google";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const notoSerifTC = Noto_Serif_TC({
-  weight: ['400', '700'],
-  subsets: ['latin'],
-  variable: '--font-noto-serif-tc',
-  display: 'swap',
-  preload: false,
-});
-
-const notoSansTC = Noto_Sans_TC({
-  weight: ['300', '400', '500'],
-  subsets: ['latin'],
-  variable: '--font-noto-sans-tc',
-  display: 'swap',
-  preload: false,
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL ?? 'https://spacelog.tw'),
@@ -62,7 +35,7 @@ export default function RootLayout({
   return (
     <html
       lang="zh-TW"
-      className={`${geistSans.variable} ${geistMono.variable} ${notoSerifTC.variable} ${notoSansTC.variable} h-full antialiased`}
+      className="h-full antialiased"
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
