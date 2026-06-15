@@ -88,6 +88,33 @@ export default async function sitemap(
         });
       }
 
+      // 社區大樓：入口 + 縣市頁 + 行政區頁
+      entries.push({ url: `${BASE}/community`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 });
+
+      const commCities = await prisma.$queryRawUnsafe<{ city: string }[]>(
+        `SELECT DISTINCT city FROM community_names WHERE city IS NOT NULL AND city != '' ORDER BY city`
+      ).catch(() => []);
+      for (const { city } of commCities) {
+        entries.push({ url: `${BASE}/community/${encodeURIComponent(city)}`, changeFrequency: 'weekly', priority: 0.75 });
+      }
+
+      const commDistricts = await prisma.$queryRawUnsafe<{ city: string; district: string }[]>(
+        `SELECT city, district FROM community_names
+         WHERE city IS NOT NULL AND district IS NOT NULL AND district != ''
+           AND LENGTH(district) BETWEEN 2 AND 4
+           AND district ~ '[區鎮鄉市]$'
+           AND (LENGTH(district) < 4 OR district !~ '[區鎮鄉市][區鎮鄉市]$')
+         GROUP BY city, district
+         ORDER BY city, district`
+      ).catch(() => []);
+      for (const r of commDistricts) {
+        entries.push({
+          url: `${BASE}/community/${encodeURIComponent(r.city)}/${encodeURIComponent(r.district)}`,
+          changeFrequency: 'weekly',
+          priority: 0.7,
+        });
+      }
+
       // 法拍縣市頁
       const cities = await prisma.$queryRawUnsafe<{ city: string }[]>(
         `SELECT DISTINCT city FROM houses WHERE city IS NOT NULL AND city != '' ORDER BY city`
