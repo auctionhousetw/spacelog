@@ -14,21 +14,10 @@ const COMMUNITY_ID_START = 3;
 export async function generateSitemaps() {
   try {
     const rows = await prisma.$queryRawUnsafe<[{ count: bigint }]>(
-      `SELECT COUNT(*) as count FROM (
-         SELECT city, district,
-           CASE WHEN STRPOS(address,'號') > 0
-                THEN SUBSTRING(address,1,STRPOS(address,'號'))
-                ELSE address END as addr
-         FROM lvr_land
-         WHERE city IS NOT NULL AND district IS NOT NULL
-           AND tx_type LIKE '%建物%' AND total_price > 0
-           AND address IS NOT NULL AND address != ''
-         GROUP BY city, district,
-           CASE WHEN STRPOS(address,'號') > 0
-                THEN SUBSTRING(address,1,STRPOS(address,'號'))
-                ELSE address END
-         HAVING COUNT(*) >= 3
-       )`
+      `SELECT COUNT(*) as count FROM community_names
+       WHERE name IS NOT NULL AND name != ''
+         AND city IS NOT NULL AND city != ''
+         AND district IS NOT NULL AND district != ''`
     );
     const count = Number(rows[0]?.count ?? 0);
     const communityPages = Math.max(1, Math.ceil(count / COMMUNITY_CHUNK));
@@ -265,29 +254,21 @@ export default async function sitemap(
       }
 
     } else {
-      // 社區/物件歷史頁（id >= 3），每頁 COMMUNITY_CHUNK 筆
+      // 社區詳情頁（id >= 3），每頁 COMMUNITY_CHUNK 筆，URL key 為 community_names.name
       const page = id - COMMUNITY_ID_START;
       const offset = page * COMMUNITY_CHUNK;
-      const communities = await prisma.$queryRawUnsafe<{ city: string; district: string; addr: string }[]>(
-        `SELECT city, district,
-                CASE WHEN STRPOS(address,'號') > 0
-                     THEN SUBSTRING(address,1,STRPOS(address,'號'))
-                     ELSE address END as addr
-         FROM lvr_land
-         WHERE city IS NOT NULL AND district IS NOT NULL
-           AND tx_type LIKE '%建物%' AND total_price > 0
-           AND address IS NOT NULL AND address != ''
-         GROUP BY city, district,
-                  CASE WHEN STRPOS(address,'號') > 0
-                       THEN SUBSTRING(address,1,STRPOS(address,'號'))
-                       ELSE address END
-         HAVING COUNT(*) >= 3
-         ORDER BY COUNT(*) DESC
+      const communities = await prisma.$queryRawUnsafe<{ city: string; district: string; name: string }[]>(
+        `SELECT city, district, name
+         FROM community_names
+         WHERE name IS NOT NULL AND name != ''
+           AND city IS NOT NULL AND city != ''
+           AND district IS NOT NULL AND district != ''
+         ORDER BY city, district, name
          LIMIT ${COMMUNITY_CHUNK} OFFSET ${offset}`
       ).catch(() => []);
       for (const r of communities) {
         entries.push({
-          url: `${BASE}/community/${encodeURIComponent(r.city)}/${encodeURIComponent(r.district)}/${encodeURIComponent(r.addr)}`,
+          url: `${BASE}/community/${encodeURIComponent(r.city)}/${encodeURIComponent(r.district)}/${encodeURIComponent(r.name)}`,
           changeFrequency: 'monthly',
           priority: 0.55,
         });

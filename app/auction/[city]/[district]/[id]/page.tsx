@@ -390,10 +390,10 @@ export default async function ItemPage({
              AND tx_date_iso >= to_char(CURRENT_DATE - INTERVAL '1 year', 'YYYY-MM-DD')`
         ).catch(() => [])
       : Promise.resolve([]),
-    // 近期成交案例（條件篩選版）
+    // 近期成交案例（條件篩選版，含 build_complete 供屋齡調整）
     prisma.$queryRawUnsafe<any[]>(
       `SELECT address, total_price, unit_price_sqm, area_sqm, tx_date_iso,
-              bedrooms, halls, floor, building_type
+              bedrooms, halls, floor, building_type, build_complete
        FROM lvr_land
        WHERE city = '${safeCity2}' AND district = '${safeDist2}'
          AND tx_type LIKE '%建物%'
@@ -401,7 +401,7 @@ export default async function ItemPage({
          ${btypeClause}
          ${areaClause}
        ORDER BY tx_date_iso DESC
-       LIMIT 5`
+       LIMIT 10`
     ).catch(() => []),
   ]);
 
@@ -420,6 +420,54 @@ export default async function ItemPage({
     ? Math.round((1 - item.price / Number(lvrSt.avg_price)) * 100)
     : null;
   const hasLvr = lvrRecent.length > 0 || lvrAvgWan !== null;
+
+  // ── Phase 2: 屋齡調整 ────────────────────────────────────────────────────────
+  const CUR_YR = 2026;
+  const parseRocYear = (s: string | null | undefined): number | null => {
+    if (!s) return null;
+    const d = s.replace(/\D/g, '');
+    if (d.length < 3) return null;
+    const roc = parseInt(d.slice(0, 3));
+    return (roc > 0 && roc <= 150) ? roc + 1911 : null;
+  };
+  const parseAge = (s: string | null | undefined): number | null => {
+    const m = (s || '').match(/(\d+)/);
+    return m ? parseInt(m[1]) : null;
+  };
+  const medianOf = (arr: number[]): number => {
+    if (!arr.length) return 0;
+    return [...arr].sort((a, b) => a - b)[Math.floor(arr.length / 2)];
+  };
+
+  const compBuildYears = lvrRecent
+    .map((c: any) => parseRocYear(c.build_complete))
+    .filter((y): y is number => y !== null && y > 1950 && y <= CUR_YR);
+  const compAges = compBuildYears.map(y => CUR_YR - y);
+  const medCompAge = compAges.length >= 2 ? medianOf(compAges) : null;
+
+  const subjectAge = parseAge(item.age);
+  let ageAdjFactor = 1.0;
+  if (subjectAge !== null && medCompAge !== null) {
+    const delta = subjectAge - medCompAge;
+    if (Math.abs(delta) >= 1.5) {
+      ageAdjFactor = delta > 0
+        ? Math.max(0.65, 1.0 - delta * 0.007)
+        : Math.min(1.10, 1.0 - delta * 0.003);
+    }
+  }
+  const ageAdjApplied = Math.abs(ageAdjFactor - 1.0) > 0.001;
+  const ageAdjPct     = Math.round((ageAdjFactor - 1.0) * 100);
+
+  // 本物件估值：均坪價 × 屋齡調整係數 × 坪數
+  const lvrUnitAdj = lvrUnitWan ? parseFloat(lvrUnitWan) * ageAdjFactor : null;
+  const lvrUnitWanAdj = lvrUnitAdj ? lvrUnitAdj.toFixed(1) : lvrUnitWan;
+  const subjectPing = item.area ?? null;
+  const estimatedValueWan = (lvrUnitAdj && subjectPing)
+    ? Math.round(lvrUnitAdj * subjectPing)
+    : null;
+  const discountVsEstimated = (item.price && estimatedValueWan && estimatedValueWan > 0)
+    ? Math.round((1 - item.price / (estimatedValueWan * 10000)) * 100)
+    : discountVsMarket;
 
   // ── 共用樣式 ──────────────────────────────────────────────────────────────
   const cardStyle: React.CSSProperties = {
@@ -772,18 +820,31 @@ export default async function ItemPage({
                 </div>
 
                 {/* 核心數字列 */}
-                {lvrAvgWan && (
+                {(lvrAvgWan || estimatedValueWan) && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderBottom: '1px solid #e0e8f8' }}>
                   {[
-                    { label: '市場均價', value: `${lvrAvgWan.toLocaleString()} 萬`, accent: true },
-                    { label: '均價（萬/坪）', value: lvrUnitWan ? `${lvrUnitWan} 萬` : '—', accent: false },
                     {
-                      label: '底價比市價',
-                      value: discountVsMarket !== null
-                        ? (discountVsMarket > 0 ? `低 ${discountVsMarket}%` : discountVsMarket < 0 ? `高 ${Math.abs(discountVsMarket)}%` : '持平')
+                      label: estimatedValueWan ? '本物件估值' : '市場均價',
+                      value: estimatedValueWan
+                        ? `${estimatedValueWan.toLocaleString()} 萬`
+                        : (lvrAvgWan ? `${lvrAvgWan.toLocaleString()} 萬` : '—'),
+                      sub: ageAdjApplied ? `屋齡調整 ${ageAdjPct > 0 ? '+' : ''}${ageAdjPct}%` : null,
+                      accent: true,
+                    },
+                    {
+                      label: `均價（萬/坪）${ageAdjApplied ? '★' : ''}`,
+                      value: lvrUnitWanAdj ? `${lvrUnitWanAdj} 萬` : '—',
+                      sub: ageAdjApplied ? `原 ${lvrUnitWan} 萬` : null,
+                      accent: false,
+                    },
+                    {
+                      label: estimatedValueWan ? '底價比估值' : '底價比市價',
+                      value: discountVsEstimated !== null
+                        ? (discountVsEstimated > 0 ? `低 ${discountVsEstimated}%` : discountVsEstimated < 0 ? `高 ${Math.abs(discountVsEstimated)}%` : '持平')
                         : '—',
-                      accent: discountVsMarket !== null && discountVsMarket > 0,
-                      green: discountVsMarket !== null && discountVsMarket > 0,
+                      accent: discountVsEstimated !== null && discountVsEstimated > 0,
+                      green: discountVsEstimated !== null && discountVsEstimated > 0,
+                      sub: null,
                     },
                   ].map((s, i, arr) => (
                     <div key={s.label} style={{ padding: '.85rem 1rem', borderRight: i < arr.length - 1 ? '1px solid #e0e8f8' : 'none', textAlign: 'center' }}>
@@ -791,6 +852,7 @@ export default async function ItemPage({
                       <div style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '1.15rem', fontWeight: 700, color: s.green ? '#3a7d2c' : s.accent ? '#2a5298' : '#444' }}>
                         {s.value}
                       </div>
+                      {s.sub && <div style={{ fontSize: '.68rem', color: '#8aabdf', marginTop: '.15rem' }}>{s.sub}</div>}
                     </div>
                   ))}
                 </div>
