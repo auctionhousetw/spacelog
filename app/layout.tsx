@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 const notoSerifTC = Noto_Serif_TC({
   weight: ['400', '700'],
-  subsets: ['chinese-traditional'],
+  subsets: ['latin'],
   variable: '--font-noto-serif-tc',
   display: 'swap',
   preload: false,
@@ -22,7 +22,7 @@ const notoSerifTC = Noto_Serif_TC({
 
 const notoSansTC = Noto_Sans_TC({
   weight: ['300', '400', '500'],
-  subsets: ['chinese-traditional'],
+  subsets: ['latin'],
   variable: '--font-noto-sans-tc',
   display: 'swap',
   preload: false,
