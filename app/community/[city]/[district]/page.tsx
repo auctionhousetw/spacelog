@@ -138,9 +138,7 @@ export default async function CommunityDistrictPage({ params }: { params: Params
           {communities.map((com, i) => (
             <a
               key={i}
-              href={com.addr
-                ? `/community/${encodeURIComponent(c)}/${encodeURIComponent(d)}/${encodeURIComponent(com.addr)}`
-                : '#'}
+              href={`/community/${encodeURIComponent(c)}/${encodeURIComponent(d)}/${encodeURIComponent(com.name)}`}
               className="c-card"
               data-name={com.name}
             >

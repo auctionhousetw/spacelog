@@ -323,7 +323,7 @@ export default async function HomePage() {
         </div>
       </div>
 
-      <div className="wrap">
+      <main className="wrap">
 
         {/* ── 最新法拍物件 ── */}
         {recentHouses.length > 0 && (
@@ -445,7 +445,7 @@ export default async function HomePage() {
           </div>
         </section>
 
-      </div>
+      </main>
 
       {/* ── 底部 ── */}
       <footer className="footer">

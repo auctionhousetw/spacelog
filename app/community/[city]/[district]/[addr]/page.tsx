@@ -19,17 +19,31 @@ export async function generateMetadata({ params }: { params: Params }) {
 
   let n = 0, avg = 0;
   try {
-    const stripMeta = (addr: string) => {
-      let s = addr;
+    const stripMeta = (s2: string) => {
+      let s = s2;
       const cv = [c, c.replace(/^台/, '臺'), c.replace(/^臺/, '台')];
       for (const v of cv) { if (s.startsWith(v)) { s = s.slice(v.length); break; } }
       if (s.startsWith(d)) s = s.slice(d.length);
       return s;
     };
-    const shortA = stripMeta(a).replace(/'/g, "''").replace(/%/g, '\\%');
+    const safeCC = c.replace(/'/g, "''");
+    const safeDD = d.replace(/'/g, "''");
+    let metaCondition = `address LIKE '%${stripMeta(a).replace(/'/g, "''").replace(/%/g, '\\%')}%'`;
+    try {
+      const cnMeta = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT addrs FROM community_names WHERE city='${safeCC}' AND district='${safeDD}' AND name='${a.replace(/'/g, "''")}' LIMIT 1`
+      );
+      if (cnMeta[0]?.addrs) {
+        let raw: string[] = [];
+        try { const f = cnMeta[0].addrs; raw = Array.isArray(f) ? f : JSON.parse(String(f)); } catch {}
+        const parts = raw.map(stripMeta).filter(Boolean).slice(0, 30)
+          .map(s => `address LIKE '%${s.replace(/'/g, "''").replace(/%/g, '\\%')}%'`);
+        if (parts.length > 0) metaCondition = parts.length > 1 ? `(${parts.join(' OR ')})` : parts[0];
+      }
+    } catch {}
     const rows = await prisma.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg
-       FROM lvr_land WHERE city='${c.replace(/'/g, "''")}' AND district='${d.replace(/'/g, "''")}' AND address LIKE '%${shortA}%' AND tx_type LIKE '%建物%'`
+       FROM lvr_land WHERE city='${safeCC}' AND district='${safeDD}' AND ${metaCondition} AND tx_type LIKE '%建物%'`
     );
     n   = Number(rows[0]?.n || 0);
     avg = rows[0]?.avg ? Math.round(Number(rows[0].avg) / 10000) : 0;
@@ -51,18 +65,43 @@ export default async function CommunityPage({ params }: { params: Params }) {
   const safeC = c.replace(/'/g, "''");
   const safeD = d.replace(/'/g, "''");
 
-  // 剝掉地址開頭的縣市+行政區前綴（台/臺 兩種字形），避免漏查短格式地址
   const stripPrefix = (addr: string): string => {
     let s = addr;
-    // 先移除縣市（台中市 / 臺中市 等）
     const cityVariants = [c, c.replace(/^台/, '臺'), c.replace(/^臺/, '台')];
     for (const cv of cityVariants) { if (s.startsWith(cv)) { s = s.slice(cv.length); break; } }
-    // 再移除行政區
     if (s.startsWith(d)) s = s.slice(d.length);
     return s;
   };
-  const addrShort = stripPrefix(a);  // e.g. 榮和路８８號
+
+  // 先查 community_names：若 [addr] 參數是社區名稱，用 addrs 陣列聚合所有門牌的 lvr_land
+  let communityNameMatch: { name: string; addr: string; allAddrs: string[] } | null = null;
+  try {
+    const cnRows = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT name, addr, addrs FROM community_names WHERE city='${safeC}' AND district='${safeD}' AND name='${a.replace(/'/g, "''")}' LIMIT 1`
+    );
+    if (cnRows[0]?.name) {
+      let rawAddrs: string[] = [];
+      try { const f = cnRows[0].addrs; rawAddrs = Array.isArray(f) ? f : JSON.parse(String(f || '[]')); } catch {}
+      const allAddrs = rawAddrs.length > 0 ? rawAddrs : (cnRows[0].addr ? [String(cnRows[0].addr)] : []);
+      communityNameMatch = { name: String(cnRows[0].name), addr: String(cnRows[0].addr || ''), allAddrs };
+    }
+  } catch { /* ignore */ }
+
+  const addrShort = stripPrefix(communityNameMatch?.addr ?? a);
   const safeA = addrShort.replace(/'/g, "''");
+
+  // SQL 地址條件：社區名稱時 OR 聚合所有門牌，門牌時單一 LIKE
+  let addrCondition: string;
+  if (communityNameMatch && communityNameMatch.allAddrs.length > 0) {
+    const parts = communityNameMatch.allAddrs
+      .map(a2 => stripPrefix(a2))
+      .filter(Boolean)
+      .slice(0, 30)
+      .map(s => `address LIKE '%${s.replace(/'/g, "''").replace(/%/g, '\\%')}%'`);
+    addrCondition = parts.length > 1 ? `(${parts.join(' OR ')})` : (parts[0] ?? `address LIKE '%${safeA}%'`);
+  } else {
+    addrCondition = `address LIKE '%${safeA}%'`;
+  }
 
   // 提取路段名（用於周邊查詢）
   const roadName = (() => {
@@ -93,7 +132,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
       prisma.$queryRawUnsafe<any[]>(
         `SELECT * FROM lvr_land
          WHERE city='${safeC}' AND district='${safeD}'
-           AND address LIKE '%${safeA}%' AND tx_type LIKE '%建物%' AND total_price > 0
+           AND ${addrCondition} AND tx_type LIKE '%建物%' AND total_price > 0
          ORDER BY tx_date_iso DESC LIMIT 200`
       ),
       // 統計
@@ -106,7 +145,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
                 MAX(tx_date_iso) as latest, MIN(tx_date_iso) as earliest
          FROM lvr_land
          WHERE city='${safeC}' AND district='${safeD}'
-           AND address LIKE '%${safeA}%' AND tx_type LIKE '%建物%' AND total_price > 0`
+           AND ${addrCondition} AND tx_type LIKE '%建物%' AND total_price > 0`
       ),
       // 年度走勢
       prisma.$queryRawUnsafe<any[]>(
@@ -116,7 +155,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit
          FROM lvr_land
          WHERE city='${safeC}' AND district='${safeD}'
-           AND address LIKE '%${safeA}%' AND tx_type LIKE '%建物%' AND total_price > 0
+           AND ${addrCondition} AND tx_type LIKE '%建物%' AND total_price > 0
          GROUP BY year ORDER BY year`
       ),
       // 法拍屋：同地址（模糊匹配）
@@ -125,7 +164,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
                 auction_round, status, delivery, type, city, district
          FROM houses
          WHERE city='${safeC}' AND district='${safeD}'
-           AND address LIKE '%${safeA}%'
+           AND ${addrCondition}
          ORDER BY auction_date DESC LIMIT 20`
       ).catch(() => []),
       // 行政區整體均價（對比基準）
@@ -142,7 +181,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price
          FROM lvr_land
          WHERE city='${safeC}' AND district='${safeD}'
-           AND address LIKE '%${safeA}%' AND tx_type LIKE '%建物%' AND total_price > 0
+           AND ${addrCondition} AND tx_type LIKE '%建物%' AND total_price > 0
            AND bedrooms IS NOT NULL AND bedrooms > 0
          GROUP BY bedrooms, halls
          ORDER BY n DESC LIMIT 10`
@@ -161,7 +200,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
            AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price
          FROM lvr_land
          WHERE city='${safeC}' AND district='${safeD}'
-           AND address LIKE '%${safeA}%' AND tx_type LIKE '%建物%'
+           AND ${addrCondition} AND tx_type LIKE '%建物%'
            AND total_price > 0 AND area_sqm > 0
          GROUP BY range_label
          ORDER BY range_min`
@@ -173,7 +212,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit
          FROM lvr_land
          WHERE city='${safeC}' AND district='${safeD}'
-           AND address LIKE '%${safeA}%' AND tx_type LIKE '%建物%' AND total_price > 0
+           AND ${addrCondition} AND tx_type LIKE '%建物%' AND total_price > 0
            AND floor IS NOT NULL AND floor != ''
          GROUP BY floor
          ORDER BY n DESC LIMIT 12`
@@ -187,7 +226,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
              FROM lvr_land
              WHERE city='${safeC}' AND district='${safeD}'
                AND address LIKE '%${safeRoad}%'
-               AND address NOT LIKE '%${safeA}%'
+               AND NOT ${addrCondition.startsWith('(') ? addrCondition : `(${addrCondition})`}
                AND tx_type LIKE '%建物%' AND total_price > 0
              ORDER BY tx_date_iso DESC LIMIT 8`
           ).catch(() => [])
@@ -362,13 +401,21 @@ export default async function CommunityPage({ params }: { params: Params }) {
           <p style={{ fontSize: '.72rem', fontWeight: 500, letterSpacing: '.2em', color: '#2a5298', marginBottom: '.5rem' }}>
             {pageSubLabel}
           </p>
-          {projectName && (
-            <p style={{ fontSize: '.82rem', color: '#c2632a', fontWeight: 600, marginBottom: '.3rem', letterSpacing: '.05em' }}>
-              {projectName}
-            </p>
+          {communityNameMatch ? (
+            addrShort && (
+              <p style={{ fontSize: '.82rem', color: '#888', marginBottom: '.3rem', letterSpacing: '.05em' }}>
+                代表門牌：{addrShort}
+              </p>
+            )
+          ) : (
+            projectName && (
+              <p style={{ fontSize: '.82rem', color: '#c2632a', fontWeight: 600, marginBottom: '.3rem', letterSpacing: '.05em' }}>
+                {projectName}
+              </p>
+            )
           )}
           <h1 style={{ fontFamily: "'Noto Serif TC', serif", fontSize: 'clamp(1.3rem,4vw,1.9rem)', fontWeight: 700, color: '#1e3a6e', lineHeight: 1.5, marginBottom: '.6rem' }}>
-            {addrShort} {pageLabel}歷年成交
+            {communityNameMatch?.name ?? addrShort} {pageLabel}歷年成交
           </h1>
           {totalCount === 0 ? (
             <p style={{ fontSize: '.88rem', color: '#999', fontWeight: 300, lineHeight: 2, margin: 0 }}>

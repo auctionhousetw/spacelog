@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Noto_Serif_TC, Noto_Sans_TC } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -10,6 +10,22 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const notoSerifTC = Noto_Serif_TC({
+  weight: ['400', '700'],
+  subsets: ['chinese-traditional'],
+  variable: '--font-noto-serif-tc',
+  display: 'swap',
+  preload: false,
+});
+
+const notoSansTC = Noto_Sans_TC({
+  weight: ['300', '400', '500'],
+  subsets: ['chinese-traditional'],
+  variable: '--font-noto-sans-tc',
+  display: 'swap',
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -46,16 +62,8 @@ export default function RootLayout({
   return (
     <html
       lang="zh-TW"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${notoSerifTC.variable} ${notoSansTC.variable} h-full antialiased`}
     >
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&family=Noto+Sans+TC:wght@300;400;500&display=swap"
-        />
-      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
