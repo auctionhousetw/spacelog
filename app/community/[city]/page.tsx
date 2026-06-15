@@ -32,8 +32,9 @@ export default async function CommunityCityPage({ params }: { params: Params }) 
       FROM community_names
       WHERE city='${safeC}'
         AND district != ''
-        AND LENGTH(district) BETWEEN 2 AND 3
+        AND LENGTH(district) BETWEEN 2 AND 4
         AND district ~ '[區鎮鄉市]$'
+        AND (LENGTH(district) < 4 OR district !~ '[區鎮鄉市][區鎮鄉市]$')
       GROUP BY district
       ORDER BY community_count DESC
     `);
