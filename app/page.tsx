@@ -375,7 +375,7 @@ export default async function HomePage() {
           <div className="sec-head">依縣市瀏覽法拍屋</div>
           <div className="city-grid">
             {[...SIX_METROS, ...OTHER_CITIES].map(city => (
-              <a key={city} href={`/auction?city=${encodeURIComponent(city)}`} className="city-btn">
+              <a key={city} href={`/auction?city=${encodeURIComponent(city)}`} className="city-btn" aria-label={`${city}法拍屋`}>
                 {city}
                 {cityMap[city] ? <span className="n">{cityMap[city]}</span> : null}
               </a>
@@ -391,7 +391,7 @@ export default async function HomePage() {
           </div>
           <div className="city-grid">
             {[...SIX_METROS, ...OTHER_CITIES].map(city => (
-              <a key={city} href={`/price/${encodeURIComponent(city)}`} className="city-btn city-btn-blue">
+              <a key={city} href={`/price/${encodeURIComponent(city)}`} className="city-btn city-btn-blue" aria-label={`${city}實價登錄`}>
                 {city}
               </a>
             ))}
@@ -408,6 +408,7 @@ export default async function HomePage() {
             {[...SIX_METROS, ...OTHER_CITIES].map(city => (
               <a key={city} href={`/presale/${encodeURIComponent(city)}`}
                 className="city-btn"
+                aria-label={`${city}預售屋`}
                 style={{ borderColor: presaleCityMap[city] ? '#a8d5b5' : undefined, color: presaleCityMap[city] ? '#1a6b3a' : '#ccc' }}>
                 {city}
                 {presaleCityMap[city] ? <span className="n" style={{ color: '#1a6b3a' }}>{presaleCityMap[city].toLocaleString()}</span> : null}
