@@ -1,6 +1,25 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+
+const CITY_MAP: Record<string, string> = {
+  'Taipei': '台北市', 'Taipei City': '台北市',
+  'New Taipei': '新北市', 'New Taipei City': '新北市',
+  'Taichung': '台中市', 'Taichung City': '台中市',
+  'Tainan': '台南市', 'Tainan City': '台南市',
+  'Kaohsiung': '高雄市', 'Kaohsiung City': '高雄市',
+  'Taoyuan': '桃園市', 'Taoyuan City': '桃園市',
+  'Hsinchu': '新竹市', 'Keelung': '基隆市',
+  'Miaoli': '苗栗縣', 'Changhua': '彰化縣', 'Nantou': '南投縣',
+  'Yunlin': '雲林縣', 'Chiayi': '嘉義市', 'Pingtung': '屏東縣',
+  'Yilan': '宜蘭縣', 'Hualien': '花蓮縣', 'Taitung': '台東縣',
+  'Penghu': '澎湖縣', 'Kinmen': '金門縣', 'Lienchiang': '連江縣',
+};
+
+const CITY_EXAMPLE: Record<string, string> = {
+  '台北市': '仁愛路一段', '新北市': '中山路一段', '台中市': '台灣大道一段',
+  '台南市': '中山路', '高雄市': '中正路', '桃園市': '中山路',
+};
 
 type LocState = 'idle' | 'locating' | 'error';
 
@@ -27,10 +46,24 @@ async function reverseGeocode(lat: number, lon: number): Promise<{ city: string;
 }
 
 export function AddressSearchBox() {
-  const [q, setQ]           = useState('');
-  const [locState, setLoc]  = useState<LocState>('idle');
-  const [locMsg, setLocMsg] = useState('');
+  const [q, setQ]               = useState('');
+  const [locState, setLoc]      = useState<LocState>('idle');
+  const [locMsg, setLocMsg]     = useState('');
+  const [placeholder, setPH]    = useState('輸入地址，如：仁愛路一段');
   const router = useRouter();
+
+  useEffect(() => {
+    fetch('https://ipwho.is/')
+      .then(r => r.json())
+      .then(data => {
+        if (data.country_code !== 'TW') return;
+        const city = CITY_MAP[data.city] || CITY_MAP[data.region] || '';
+        if (!city) return;
+        const example = CITY_EXAMPLE[city] || 'XX路一段';
+        setPH(`輸入地址，如：${city}${example}`);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +110,7 @@ export function AddressSearchBox() {
           type="text"
           value={q}
           onChange={e => setQ(e.target.value)}
-          placeholder="輸入地址，如：仁愛路一段"
+          placeholder={placeholder}
           style={{
             flex: 1,
             minWidth: 0,
