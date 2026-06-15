@@ -109,7 +109,6 @@ export default async function CommunityCityPage({ params }: { params: Params }) 
                   {Number(r.tx_total) > 0 && <span style={{ marginLeft: 6 }}>· {Number(r.tx_total).toLocaleString()} 筆成交</span>}
                 </div>
               </div>
-              <span style={{ color: '#c0c0c0', fontSize: 18 }}>›</span>
             </a>
           ))}
         </div>
