@@ -194,9 +194,10 @@ export default async function CommunityPage({ params }: { params: Params }) {
         : Promise.resolve([]),
     ]);
 
-    if (!lvrStatsRows[0] || Number(lvrStatsRows[0].n) === 0) notFound();
     lvrRecords     = lvrFetched;
-    lvrStats       = lvrStatsRows[0];
+    lvrStats       = lvrStatsRows[0] && Number(lvrStatsRows[0].n) > 0
+      ? lvrStatsRows[0]
+      : { n: 0, avg: null, avg_unit: null, max_p: null, min_p: null, latest: null, earliest: null };
     yearTrend      = trendRows;
     auctionRecords = auctionRows;
     distStats      = distStatsRows[0] || null;
@@ -369,31 +370,41 @@ export default async function CommunityPage({ params }: { params: Params }) {
           <h1 style={{ fontFamily: "'Noto Serif TC', serif", fontSize: 'clamp(1.3rem,4vw,1.9rem)', fontWeight: 700, color: '#1e3a6e', lineHeight: 1.5, marginBottom: '.6rem' }}>
             {addrShort} {pageLabel}歷年成交
           </h1>
-          <p style={{ fontSize: '.88rem', color: '#888', fontWeight: 300, lineHeight: 2, margin: 0 }}>
-            {lvrStats.earliest?.slice(0,4)}～{lvrStats.latest?.slice(0,4)} 年，共{' '}
-            <strong style={{ color: '#2a5298' }}>{totalCount} 筆</strong>實價成交記錄
-            {avgWan && <>，均價 <strong style={{ color: '#2a5298' }}>{avgWan.toLocaleString()} 萬</strong></>}
-            {avgUnit && <>，每坪 <strong style={{ color: '#2a5298' }}>{avgUnit.toFixed(1)} 萬</strong></>}
-            {premiumPct !== null && distAvgUnit && (
-              <>，比{d}均價（{distAvgUnit.toFixed(1)} 萬/坪）
-              <strong style={{ color: premiumPct >= 0 ? '#c2632a' : '#3a7d2c', margin: '0 3px' }}>
-                {premiumPct >= 0 ? `高 ${premiumPct}%` : `低 ${Math.abs(premiumPct)}%`}
-              </strong>
-              </>
-            )}
-            {minWan && maxWan && minWan !== maxWan && <>，成交區間 {minWan.toLocaleString()}～{maxWan.toLocaleString()} 萬</>}
-            {change !== null && <>
-              ，{firstYear?.year}年至今均價
-              <strong style={{ color: change >= 0 ? '#c2632a' : '#3a7d2c', margin: '0 3px' }}>
-                {change >= 0 ? `漲 ${change}%` : `跌 ${Math.abs(change)}%`}
-              </strong>
-            </>}
-            {totalFloors && <>，地上 <strong style={{ color: '#555' }}>{totalFloors}</strong></>}
-            {auctionRecords.length > 0 && <>
-              ；此棟曾有{' '}
-              <strong style={{ color: '#c2632a' }}>{auctionRecords.length} 筆法拍記錄</strong>
-            </>}。
-          </p>
+          {totalCount === 0 ? (
+            <p style={{ fontSize: '.88rem', color: '#999', fontWeight: 300, lineHeight: 2, margin: 0 }}>
+              此地址在 2024 年後暫無實價登錄成交記錄。
+              {auctionRecords.length > 0 && <>
+                {' '}曾有 <strong style={{ color: '#c2632a' }}>{auctionRecords.length} 筆法拍記錄</strong>。
+              </>}
+              周邊路段成交行情請參考下方區塊。
+            </p>
+          ) : (
+            <p style={{ fontSize: '.88rem', color: '#888', fontWeight: 300, lineHeight: 2, margin: 0 }}>
+              {lvrStats.earliest?.slice(0,4)}～{lvrStats.latest?.slice(0,4)} 年，共{' '}
+              <strong style={{ color: '#2a5298' }}>{totalCount} 筆</strong>實價成交記錄
+              {avgWan && <>，均價 <strong style={{ color: '#2a5298' }}>{avgWan.toLocaleString()} 萬</strong></>}
+              {avgUnit && <>，每坪 <strong style={{ color: '#2a5298' }}>{avgUnit.toFixed(1)} 萬</strong></>}
+              {premiumPct !== null && distAvgUnit && (
+                <>，比{d}均價（{distAvgUnit.toFixed(1)} 萬/坪）
+                <strong style={{ color: premiumPct >= 0 ? '#c2632a' : '#3a7d2c', margin: '0 3px' }}>
+                  {premiumPct >= 0 ? `高 ${premiumPct}%` : `低 ${Math.abs(premiumPct)}%`}
+                </strong>
+                </>
+              )}
+              {minWan && maxWan && minWan !== maxWan && <>，成交區間 {minWan.toLocaleString()}～{maxWan.toLocaleString()} 萬</>}
+              {change !== null && <>
+                ，{firstYear?.year}年至今均價
+                <strong style={{ color: change >= 0 ? '#c2632a' : '#3a7d2c', margin: '0 3px' }}>
+                  {change >= 0 ? `漲 ${change}%` : `跌 ${Math.abs(change)}%`}
+                </strong>
+              </>}
+              {totalFloors && <>，地上 <strong style={{ color: '#555' }}>{totalFloors}</strong></>}
+              {auctionRecords.length > 0 && <>
+                ；此棟曾有{' '}
+                <strong style={{ color: '#c2632a' }}>{auctionRecords.length} 筆法拍記錄</strong>
+              </>}。
+            </p>
+          )}
         </div>
 
         {/* 統計四格 */}
