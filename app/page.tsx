@@ -15,12 +15,12 @@ const SIX_METROS  = ['台北市', '新北市', '桃園市', '台中市', '台南
 const OTHER_CITIES = ['基隆市', '新竹市', '新竹縣', '苗栗縣', '彰化縣', '南投縣', '雲林縣', '嘉義市', '嘉義縣', '屏東縣', '宜蘭縣', '花蓮縣', '台東縣', '澎湖縣', '金門縣', '連江縣'];
 
 function statusStyle(status: string | null): React.CSSProperties {
-  if (!status) return { background: '#f5f5f3', color: '#aaa', border: '1px solid #e8e8e4' };
+  if (!status) return { background: '#f5f5f3', color: '#555', border: '1px solid #e8e8e4' };
   if (status.includes('待標') || status.includes('應買'))
-    return { background: '#fff3ee', color: '#c2632a', border: '1px solid #f0c4a0' };
+    return { background: '#fff3ee', color: '#ad5620', border: '1px solid #f0c4a0' };
   if (status.includes('拍定') || status.includes('成交'))
     return { background: '#f4fbf0', color: '#3a7d2c', border: '1px solid #b5dba5' };
-  return { background: '#f5f5f3', color: '#888', border: '1px solid #e8e8e4' };
+  return { background: '#f5f5f3', color: '#555', border: '1px solid #e8e8e4' };
 }
 
 export default async function HomePage() {
@@ -94,17 +94,17 @@ export default async function HomePage() {
         .nav-more { display: none; }  /* 桌機隱藏漢堡 */
         .site-bar-inner { max-width: 1200px; margin: 0 auto; padding: 0 clamp(1rem,3vw,2rem); display: flex; align-items: center; gap: 1rem; height: 52px; }
         .site-logo { font-family: var(--font-noto-serif-tc), serif; font-size: 1.05rem; font-weight: 700; color: #c2632a; text-decoration: none; flex-shrink: 0; }
-        .site-logo span { font-size: .72rem; font-weight: 400; color: #aaa; margin-left: 6px; }
-        .nav-link { font-size: .82rem; color: #888; text-decoration: none; padding: .3rem .7rem; border-radius: 2px; transition: all .15s; white-space: nowrap; }
+        .site-logo span { font-size: .72rem; font-weight: 400; color: #767676; margin-left: 6px; }
+        .nav-link { font-size: .82rem; color: #555; text-decoration: none; padding: .3rem .7rem; border-radius: 2px; transition: all .15s; white-space: nowrap; }
         .nav-link:hover { color: #c2632a; background: #fff8f4; }
         .nav-link.blue { color: #2a5298; }
         .nav-link.blue:hover { background: #f0f5ff; }
 
         /* ── Hero ── */
         .hero { background: #fff; border-bottom: 1px solid #ececec; padding: clamp(2.5rem,6vw,4rem) clamp(1rem,3vw,2rem); text-align: center; }
-        .hero-eyebrow { font-size: .72rem; font-weight: 500; letter-spacing: .22em; color: #c2632a; margin-bottom: 1rem; }
+        .hero-eyebrow { font-size: .72rem; font-weight: 500; letter-spacing: .22em; color: #ad5620; margin-bottom: 1rem; }
         .hero-h1 { font-family: var(--font-noto-serif-tc), serif; font-size: clamp(1.6rem,4.5vw,2.5rem); font-weight: 700; color: #222; line-height: 1.55; margin-bottom: 1rem; }
-        .hero-sub { font-size: clamp(.85rem,2vw,1rem); color: #888; font-weight: 300; line-height: 1.9; max-width: 560px; margin: 0 auto 2rem; }
+        .hero-sub { font-size: clamp(.85rem,2vw,1rem); color: #555; font-weight: 300; line-height: 1.9; max-width: 560px; margin: 0 auto 2rem; }
 
         /* ── 頻道卡片 ── */
         .channel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 900px; margin: 0 auto; }
@@ -118,7 +118,7 @@ export default async function HomePage() {
         .channel-card.orange .channel-label { color: #c2632a; }
         .channel-card.blue   .channel-label { color: #2a5298; }
         .channel-card.purple .channel-label { color: #7b5ea7; }
-        .channel-count { font-size: .78rem; color: #aaa; font-weight: 300; }
+        .channel-count { font-size: .78rem; color: #767676; font-weight: 300; }
         .channel-cta { font-size: .78rem; font-weight: 500; margin-top: .75rem; }
         .channel-card.orange .channel-cta { color: #c2632a; }
         .channel-card.blue   .channel-cta { color: #2a5298; }
@@ -130,7 +130,7 @@ export default async function HomePage() {
         .stat-cell { padding: 1.1rem clamp(.75rem,2vw,1.5rem); text-align: center; border-right: 1px solid #f0f0f0; }
         .stat-cell:last-child { border-right: none; }
         .stat-val { font-family: var(--font-noto-serif-tc), serif; font-size: 1.35rem; font-weight: 700; color: #c2632a; line-height: 1.2; }
-        .stat-label { font-size: .72rem; color: #aaa; font-weight: 300; margin-top: .2rem; letter-spacing: .04em; }
+        .stat-label { font-size: .72rem; color: #767676; font-weight: 300; margin-top: .2rem; letter-spacing: .04em; }
 
         /* ── 主體 ── */
         .wrap { max-width: 1100px; margin: 0 auto; padding: clamp(1.5rem,4vw,2.5rem) clamp(1rem,3vw,2rem); }
@@ -148,7 +148,7 @@ export default async function HomePage() {
         .card-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: .5rem; }
         .badge { font-size: 9.5px; font-weight: 500; padding: .16rem .5rem; border-radius: 1px; }
         .card-title { font-family: var(--font-noto-serif-tc), serif; font-size: .88rem; font-weight: 500; color: #333; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: .4rem; transition: color .15s; }
-        .card-meta { font-size: .72rem; color: #aaa; font-weight: 300; }
+        .card-meta { font-size: .72rem; color: #767676; font-weight: 300; }
         .card-price { font-family: var(--font-noto-serif-tc), serif; font-size: 1.15rem; font-weight: 700; color: #c2632a; margin-top: .5rem; }
         .card-price small { font-size: .68rem; font-weight: 400; margin-left: 2px; }
 
@@ -156,11 +156,11 @@ export default async function HomePage() {
         .city-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; margin-bottom: 2rem; }
         .city-btn { display: block; background: #fff; border: 1px solid #ececec; padding: .7rem 1rem; text-decoration: none; color: #555; font-size: .82rem; transition: all .15s; }
         .city-btn:hover { border-color: #c2632a; color: #c2632a; background: #fff8f4; }
-        .city-btn .n { float: right; font-size: .7rem; color: #ccc; font-weight: 300; }
+        .city-btn .n { float: right; font-size: .7rem; color: #767676; font-weight: 300; }
 
         /* ── 地址搜尋框 ── */
         .addr-search-wrap { max-width: 560px; width: 100%; margin: 1.75rem auto 0; overflow: hidden; }
-        .addr-search-label { font-size: .76rem; color: #aaa; font-weight: 300; margin-bottom: .5rem; letter-spacing: .04em; }
+        .addr-search-label { font-size: .76rem; color: #767676; font-weight: 300; margin-bottom: .5rem; letter-spacing: .04em; }
 
         /* ── 藍色縣市按鈕 ── */
         .city-btn-blue { border-color: #b8d0f0; color: #2a5298; }
@@ -171,7 +171,7 @@ export default async function HomePage() {
 
         /* ── 底部 ── */
         .footer { background: #fff; border-top: 1px solid #ececec; padding: 2rem clamp(1rem,3vw,2rem); text-align: center; margin-top: 3rem; }
-        .footer p { font-size: .78rem; color: #bbb; font-weight: 300; line-height: 1.9; margin: 0; }
+        .footer p { font-size: .78rem; color: #767676; font-weight: 300; line-height: 1.9; margin: 0; }
 
         @media (max-width: 640px) {
           .channel-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -350,7 +350,7 @@ export default async function HomePage() {
                         <span className="badge" style={badgeS}>{h.status}</span>
                       )}
                       {h.auction_round && (
-                        <span className="badge" style={{ background: '#fafafa', color: '#aaa', border: '1px solid #e8e8e4' }}>{h.auction_round}</span>
+                        <span className="badge" style={{ background: '#fafafa', color: '#555', border: '1px solid #e8e8e4' }}>{h.auction_round}</span>
                       )}
                     </div>
                     <div className="card-title">{h.title || h.address || '（無標題）'}</div>
@@ -410,7 +410,7 @@ export default async function HomePage() {
                 className="city-btn"
                 style={{ borderColor: presaleCityMap[city] ? '#a8d5b5' : undefined, color: presaleCityMap[city] ? '#1a6b3a' : '#ccc' }}>
                 {city}
-                {presaleCityMap[city] ? <span className="n" style={{ color: '#a8d5b5' }}>{presaleCityMap[city].toLocaleString()}</span> : null}
+                {presaleCityMap[city] ? <span className="n" style={{ color: '#1a6b3a' }}>{presaleCityMap[city].toLocaleString()}</span> : null}
               </a>
             ))}
           </div>
@@ -439,7 +439,7 @@ export default async function HomePage() {
                 className="city-btn"
                 style={{ borderColor: '#c8b8e8', color: '#7b5ea7' }}>
                 台中{slug}
-                <span className="n" style={{ color: '#c8b8e8', fontSize: '.65rem' }}>{name.split('・')[0]}</span>
+                <span className="n" style={{ color: '#7b5ea7', fontSize: '.65rem' }}>{name.split('・')[0]}</span>
               </a>
             ))}
           </div>
