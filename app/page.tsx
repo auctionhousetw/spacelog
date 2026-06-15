@@ -120,7 +120,7 @@ export default async function HomePage() {
         .channel-card.orange .channel-label { color: #ad5620; }
         .channel-card.blue   .channel-label { color: #2a5298; }
         .channel-card.purple .channel-label { color: #7b5ea7; }
-        .channel-count { font-size: .78rem; color: #767676; font-weight: 300; }
+        .channel-count { font-size: .78rem; color: #5c5c5c; font-weight: 300; }
         .channel-cta { font-size: .78rem; font-weight: 500; margin-top: .75rem; }
         .channel-card.orange .channel-cta { color: #ad5620; }
         .channel-card.blue   .channel-cta { color: #2a5298; }
