@@ -31,7 +31,9 @@ export default async function CommunityCityPage({ params }: { params: Params }) 
              SUM(COALESCE(tx_count,0)) as tx_total
       FROM community_names
       WHERE city='${safeC}'
-        AND district ~ '^[^區鎮鄉市]{1,3}[區鎮鄉市]$'
+        AND district != ''
+        AND LENGTH(district) BETWEEN 2 AND 3
+        AND district ~ '[區鎮鄉市]$'
       GROUP BY district
       ORDER BY community_count DESC
     `);
