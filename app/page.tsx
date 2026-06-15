@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { unstable_cache } from 'next/cache';
 import { AddressSearchBox } from './components/AddressSearchBox';
 
 const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
@@ -6,7 +7,66 @@ declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSin
 const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
 
-export const revalidate = 1800; // ISR：30 分鐘背景重建，避免 Neon cold start 影響 FCP
+export const revalidate = 1800;
+
+// unstable_cache 存在 Vercel Data Cache，跨 deployment 持續存在。
+// 即使重新部署也不會清空，避免每次部署後第一個請求打到 Neon cold start。
+const getHomepageData = unstable_cache(
+  async () => {
+    let auctionTotal = 0, auctionRecent = 0;
+    let lvrTotal = 0, presaleTotal = 0;
+    let recentHouses: any[] = [];
+    let cityStats: { city: string; n: number }[] = [];
+    let presaleCityStats: { city: string; n: number }[] = [];
+
+    try {
+      const [aStats, lStats, pStats, recent, cities, presaleCities] = await Promise.all([
+        prisma.$queryRawUnsafe<any[]>(
+          `SELECT COUNT(*) as total,
+                  COUNT(CASE WHEN auction_date >= to_char(CURRENT_DATE - INTERVAL '14 days', 'YYYY-MM-DD') THEN 1 END) as recent
+           FROM houses`
+        ),
+        prisma.$queryRawUnsafe<any[]>(
+          `SELECT COUNT(*) as total FROM lvr_land`
+        ).catch(() => [{ total: 0 }]),
+        prisma.$queryRawUnsafe<any[]>(
+          `SELECT COUNT(*) as total FROM lvr_presale`
+        ).catch(() => [{ total: 0 }]),
+        prisma.$queryRawUnsafe<any[]>(
+          `SELECT id, title, address, price, area, unit_price, auction_date,
+                  type, status, auction_round, delivery, city, district, is_agent_featured
+           FROM houses
+           WHERE auction_date IS NOT NULL AND auction_date != ''
+           ORDER BY CASE WHEN is_agent_featured=1 THEN 0 ELSE 1 END,
+                    auction_date DESC
+           LIMIT 8`
+        ),
+        prisma.$queryRawUnsafe<any[]>(
+          `SELECT city, COUNT(*) as n FROM houses
+           WHERE city IS NOT NULL AND city != ''
+           GROUP BY city ORDER BY n DESC`
+        ),
+        prisma.$queryRawUnsafe<any[]>(
+          `SELECT city, COUNT(*) as n FROM lvr_presale
+           WHERE city IS NOT NULL AND city != ''
+           GROUP BY city ORDER BY n DESC`
+        ).catch(() => []),
+      ]);
+
+      auctionTotal     = Number(aStats[0]?.total  || 0);
+      auctionRecent    = Number(aStats[0]?.recent || 0);
+      lvrTotal         = Number(lStats[0]?.total || 0);
+      presaleTotal     = Number(pStats[0]?.total || 0);
+      recentHouses     = recent;
+      cityStats        = cities.map((r: any) => ({ city: r.city, n: Number(r.n) }));
+      presaleCityStats = presaleCities.map((r: any) => ({ city: r.city, n: Number(r.n) }));
+    } catch { /* DB 未就緒 */ }
+
+    return { auctionTotal, auctionRecent, lvrTotal, presaleTotal, recentHouses, cityStats, presaleCityStats };
+  },
+  ['homepage-data'],
+  { revalidate: 1800 }
+);
 
 export const metadata = {
   title: '法拍屋・實價登錄 | 全台房地產資訊平台',
@@ -26,61 +86,11 @@ function statusStyle(status: string | null): React.CSSProperties {
 }
 
 export default async function HomePage() {
-  // ── 統計資料 ──────────────────────────────────────────────────────────────
-  let auctionTotal = 0, auctionRecent = 0;
-  let lvrTotal = 0, presaleTotal = 0;
-  let recentHouses: any[] = [];
-  let cityStats: { city: string; n: number }[] = [];
-  let presaleCityStats: { city: string; n: number }[] = [];
-
-  try {
-    const [aStats, lStats, pStats, recent, cities, presaleCities] = await Promise.all([
-      // 法拍統計
-      prisma.$queryRawUnsafe<any[]>(
-        `SELECT COUNT(*) as total,
-                COUNT(CASE WHEN auction_date >= to_char(CURRENT_DATE - INTERVAL '14 days', 'YYYY-MM-DD') THEN 1 END) as recent
-         FROM houses`
-      ),
-      // 實價統計
-      prisma.$queryRawUnsafe<any[]>(
-        `SELECT COUNT(*) as total FROM lvr_land`
-      ).catch(() => [{ total: 0 }]),
-      // 預售統計
-      prisma.$queryRawUnsafe<any[]>(
-        `SELECT COUNT(*) as total FROM lvr_presale`
-      ).catch(() => [{ total: 0 }]),
-      // 最新法拍（精選 + 最新開標）
-      prisma.$queryRawUnsafe<any[]>(
-        `SELECT id, title, address, price, area, unit_price, auction_date,
-                type, status, auction_round, delivery, city, district, is_agent_featured
-         FROM houses
-         WHERE auction_date IS NOT NULL AND auction_date != ''
-         ORDER BY CASE WHEN is_agent_featured=1 THEN 0 ELSE 1 END,
-                  auction_date DESC
-         LIMIT 8`
-      ),
-      // 縣市法拍筆數
-      prisma.$queryRawUnsafe<any[]>(
-        `SELECT city, COUNT(*) as n FROM houses
-         WHERE city IS NOT NULL AND city != ''
-         GROUP BY city ORDER BY n DESC`
-      ),
-      // 縣市預售筆數
-      prisma.$queryRawUnsafe<any[]>(
-        `SELECT city, COUNT(*) as n FROM lvr_presale
-         WHERE city IS NOT NULL AND city != ''
-         GROUP BY city ORDER BY n DESC`
-      ).catch(() => []),
-    ]);
-
-    auctionTotal      = Number(aStats[0]?.total  || 0);
-    auctionRecent     = Number(aStats[0]?.recent || 0);
-    lvrTotal          = Number(lStats[0]?.total || 0);
-    presaleTotal      = Number(pStats[0]?.total || 0);
-    recentHouses      = recent;
-    cityStats         = cities.map((r: any) => ({ city: r.city, n: Number(r.n) }));
-    presaleCityStats  = presaleCities.map((r: any) => ({ city: r.city, n: Number(r.n) }));
-  } catch { /* DB 未就緒 */ }
+  const {
+    auctionTotal, auctionRecent,
+    lvrTotal, presaleTotal,
+    recentHouses, cityStats, presaleCityStats,
+  } = await getHomepageData();
 
   const cityMap        = Object.fromEntries(cityStats.map(s => [s.city, s.n]));
   const presaleCityMap = Object.fromEntries(presaleCityStats.map(s => [s.city, s.n]));
