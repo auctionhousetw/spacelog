@@ -460,34 +460,16 @@ export default async function ItemPage({
               { '@type': 'ListItem', position: 4, name: item.title?.replace(/-[^-]+[市縣].*$/, '') || item.address || '物件詳情' },
             ],
           },
-          ...(item.price ? [{
-            '@type': 'Product',
+          {
+            '@type': 'RealEstateListing',
             name: item.title?.replace(/-[^-]+[市縣].*$/, '') || item.address || `${item.city}${item.district}法拍屋`,
             description: `${item.city}${item.district}法拍${item.type || '屋'}，底價 ${priceWan}，${r.total_ping ? `${r.total_ping} 坪，` : ''}開標日 ${displayAuctionDate}。`,
             image: `${BASE}/og.png`,
-            brand: { '@type': 'Brand', name: '法拍屋資訊平台' },
-            offers: {
-              '@type': 'Offer',
-              priceCurrency: 'TWD',
-              price: item.price,
-              availability: 'https://schema.org/InStock',
-              hasMerchantReturnPolicy: {
-                '@type': 'MerchantReturnPolicy',
-                applicableCountry: 'TW',
-                returnPolicyCategory: 'https://schema.org/MerchantReturnNotPermitted',
-              },
-              shippingDetails: {
-                '@type': 'OfferShippingDetails',
-                shippingRate: { '@type': 'MonetaryAmount', value: '0', currency: 'TWD' },
-                shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'TW' },
-                deliveryTime: {
-                  '@type': 'ShippingDeliveryTime',
-                  handlingTime: { '@type': 'QuantitativeValue', minValue: 0, maxValue: 0, unitCode: 'DAY' },
-                  transitTime: { '@type': 'QuantitativeValue', minValue: 0, maxValue: 0, unitCode: 'DAY' },
-                },
-              },
-            },
-          }] : []),
+            url: `${BASE}/auction/${encodeURIComponent(item.city || '')}/${encodeURIComponent(item.district || '')}/${id}`,
+            ...(item.address ? { address: { '@type': 'PostalAddress', streetAddress: item.address, addressRegion: item.city, addressCountry: 'TW' } } : {}),
+            ...(r.total_ping ? { floorSize: { '@type': 'QuantitativeValue', value: parseFloat(r.total_ping), unitText: '坪' } } : {}),
+            ...(displayAuctionDate ? { datePosted: displayAuctionDate } : {}),
+          },
         ],
       }) }} />
 
