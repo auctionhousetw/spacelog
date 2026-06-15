@@ -32,6 +32,7 @@ export default async function CommunityDistrictPage({ params }: { params: Params
       SELECT name, addr, tx_count, source
       FROM community_names
       WHERE city='${safeC}' AND district='${safeD}'
+        AND district ~ '^[^區鎮鄉市]{1,3}[區鎮鄉市]$'
       ORDER BY COALESCE(tx_count, 0) DESC, name ASC
       LIMIT 2000
     `);
