@@ -13,6 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL ?? 'https://spacelog.tw'),
   title: {
     default:  '法拍屋・實價登錄 | 全台房地產資訊平台',
     template: '%s | 法拍屋資訊平台',
