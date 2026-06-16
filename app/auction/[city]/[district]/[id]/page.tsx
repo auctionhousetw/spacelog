@@ -280,9 +280,16 @@ export default async function ItemPage({
   };
 
   const priceWan     = formatWan(item.price);
-  // 下次預估：從目前底價 × 0.8 計算，不用 next_price 欄位（可能存的是上一拍）
   const nextPriceWan = item.price
     ? `${Math.floor(item.price * 0.8 / 10000).toLocaleString()} 萬`
+    : null;
+  // next_price 欄位：由 import_judicial.py Step2 地址配對補入的前次拍賣實際底價
+  const actualPrevPrice = (item as any).next_price as number | null;
+  const prevPriceWan = actualPrevPrice
+    ? `${Math.floor(actualPrevPrice / 10000).toLocaleString()} 萬`
+    : null;
+  const discountFromPrev = (actualPrevPrice && item.price && actualPrevPrice > item.price)
+    ? Math.round((1 - item.price / actualPrevPrice) * 100)
     : null;
 
   // Google Maps 嵌入網址（免 API Key）
@@ -305,16 +312,28 @@ export default async function ItemPage({
   const priceHistory = item.price ? (() => {
     const cur = item.price!;
     const rows = [];
-    const start = Math.max(1, roundNum - 2); // 最多顯示前2拍
-    const end   = roundNum + 2;              // 顯示後2拍
+    const start = Math.max(1, roundNum - 2);
+    const end   = roundNum + 2;
     for (let i = start; i <= end; i++) {
-      const factor = Math.pow(0.8, i - roundNum);
-      const p = Math.floor(cur * factor / 10000);
+      let p: number;
+      let isActual = false;
+      if (i === roundNum) {
+        p = Math.floor(cur / 10000);
+      } else if (i === roundNum - 1 && actualPrevPrice) {
+        p = Math.floor(actualPrevPrice / 10000);
+        isActual = true;
+      } else {
+        const factor = Math.pow(0.8, i - roundNum);
+        p = Math.floor(cur * factor / 10000);
+      }
       if (p <= 0) break;
       rows.push({
-        label: i < roundNum ? `第 ${i} 拍` : i === roundNum ? `第 ${i} 拍（目前）` : `第 ${i} 拍（預估）`,
+        label: i < roundNum
+          ? (isActual ? `第 ${i} 拍（實際）` : `第 ${i} 拍（預估）`)
+          : i === roundNum ? `第 ${i} 拍（目前）` : `第 ${i} 拍（預估）`,
         price: p,
         active: i === roundNum,
+        isActual,
       });
     }
     return rows;
@@ -692,6 +711,9 @@ export default async function ItemPage({
                   <InfoRow label="點交情形"           value={r.delivery_disp} green />
                   <InfoRow label="投標保證金"         value={r.deposit} accent />
                   <InfoRow label="拍賣底價"           value={priceWan} accent />
+                  {prevPriceWan && (
+                    <InfoRow label={`前次底價（實際↓${discountFromPrev}%）`} value={prevPriceWan} />
+                  )}
                   <InfoRow label="下次底價預估"       value={nextPriceWan} />
                   <InfoRow label="土地用途／建物類型"  value={r.land_use} />
                   <InfoRow label="是否凶宅"           value={item.haunted} last />
@@ -713,9 +735,11 @@ export default async function ItemPage({
                         </span>
                       </div>
                       {priceHistory.map(row => (
-                        <div key={row.label} className="fp-hist-row" style={{ opacity: row.active ? 1 : .5 }}>
-                          <span style={{ color: row.active ? '#555' : '#aaa' }}>{row.label}</span>
-                          <span style={{ fontWeight: row.active ? 500 : 300, color: row.active ? '#c2632a' : '#bbb' }}>
+                        <div key={row.label} className="fp-hist-row" style={{ opacity: row.active ? 1 : row.isActual ? 0.85 : .45 }}>
+                          <span style={{ color: row.active ? '#555' : row.isActual ? '#c2632a' : '#aaa' }}>
+                            {row.label}
+                          </span>
+                          <span style={{ fontWeight: row.active || row.isActual ? 500 : 300, color: row.active ? '#c2632a' : row.isActual ? '#e8a87a' : '#bbb' }}>
                             {row.price.toLocaleString()} 萬
                           </span>
                         </div>
