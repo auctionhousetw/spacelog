@@ -4,6 +4,7 @@ const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
 declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
 const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+import prismaLvr from '@/lib/prisma-lvr';
 
 export const metadata = {
   title: '行政區行情比較 | 全台房地產資訊平台',
@@ -18,7 +19,7 @@ export default async function CompareLandingPage() {
   let districtMap: Record<string, { district: string; n: number; avgUnit: number | null }[]> = {};
 
   try {
-    const rows = await prisma.$queryRawUnsafe<any[]>(
+    const rows = await prismaLvr.$queryRawUnsafe<any[]>(
       `SELECT city, district,
               COUNT(*) as n,
               AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit

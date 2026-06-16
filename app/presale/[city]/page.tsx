@@ -1,10 +1,5 @@
-import { notFound } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+﻿import { notFound } from 'next/navigation';
+import prismaLvr from '@/lib/prisma-lvr';
 
 type Params = Promise<{ city: string }>;
 
@@ -29,7 +24,7 @@ export default async function PresaleCityPage({ params }: { params: Params }) {
   try {
     const safeC = c.replace(/'/g, "''");
     const [statsRows, distRows] = await Promise.all([
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit,
@@ -37,7 +32,7 @@ export default async function PresaleCityPage({ params }: { params: Params }) {
                 MAX(tx_date_iso) as latest
          FROM lvr_presale WHERE city='${safeC}'`
       ),
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT district,
                 COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg,

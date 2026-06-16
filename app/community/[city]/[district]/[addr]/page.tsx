@@ -5,6 +5,7 @@ const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
 declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
 const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+import prismaLvr from '@/lib/prisma-lvr';
 
 type Params = Promise<{ city: string; district: string; addr: string }>;
 
@@ -41,7 +42,7 @@ export async function generateMetadata({ params }: { params: Params }) {
         if (parts.length > 0) metaCondition = parts.length > 1 ? `(${parts.join(' OR ')})` : parts[0];
       }
     } catch {}
-    const rows = await prisma.$queryRawUnsafe<any[]>(
+    const rows = await prismaLvr.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg
        FROM lvr_land WHERE city='${safeCC}' AND district='${safeDD}' AND ${metaCondition} AND tx_type LIKE '%建物%'`
     );
@@ -129,14 +130,14 @@ export default async function CommunityPage({ params }: { params: Params }) {
     const [lvrFetched, lvrStatsRows, trendRows, auctionRows, distStatsRows,
            layoutFetched, areaFetched, floorFetched, nearbyFetched] = await Promise.all([
       // 實價登錄：同門牌所有成交
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT * FROM lvr_land
          WHERE city='${safeC}' AND district='${safeD}'
            AND ${addrCondition} AND tx_type LIKE '%建物%' AND total_price > 0
          ORDER BY tx_date_iso DESC LIMIT 200`
       ),
       // 統計
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit,
@@ -148,7 +149,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
            AND ${addrCondition} AND tx_type LIKE '%建物%' AND total_price > 0`
       ),
       // 年度走勢
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT SUBSTRING(tx_date_iso,1,4) as year,
                 COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,
@@ -168,7 +169,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
          ORDER BY auction_date DESC LIMIT 20`
       ).catch(() => []),
       // 行政區整體均價（對比基準）
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as dist_avg_unit,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as dist_avg_price
          FROM lvr_land
@@ -176,7 +177,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
            AND tx_type LIKE '%建物%' AND total_price > 0`
       ).catch(() => []),
       // 格局分布（幾房幾廳）
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT bedrooms, halls, COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price
          FROM lvr_land
@@ -187,7 +188,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
          ORDER BY n DESC LIMIT 10`
       ).catch(() => []),
       // 坪數分布
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT
            CASE
              WHEN area_sqm < 49.6  THEN '15坪以下'
@@ -206,7 +207,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
          ORDER BY range_min`
       ).catch(() => []),
       // 樓層均價
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT floor, COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit
@@ -219,7 +220,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
       ).catch(() => []),
       // 周邊同路段近期成交（排除本門牌，無路名時回傳空陣列）
       safeRoad
-        ? prisma.$queryRawUnsafe<any[]>(
+        ? prismaLvr.$queryRawUnsafe<any[]>(
             `SELECT address,
                     CASE WHEN STRPOS(address,'號')>0 THEN SUBSTRING(address,1,STRPOS(address,'號')) ELSE address END as addr_norm,
                     tx_date_iso, total_price, unit_price_sqm, building_type, area_sqm
@@ -246,7 +247,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
     nearbyRows     = nearbyFetched;
     // 預售屋記錄（同行政區、地址含路名）
     if (roadName) {
-      presaleRows = await prisma.$queryRawUnsafe<any[]>(
+      presaleRows = await prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT id, project_name, floor, total_floors, building_type,
                 area_sqm, bedrooms, halls, total_price, unit_price_sqm,
                 tx_date_iso, city, district
@@ -258,7 +259,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
       ).catch(() => []);
 
       // 建案名稱：只用政府委員會來源（gov_committee），避免侵權
-      const nameRows = await prisma.$queryRawUnsafe<any[]>(
+      const nameRows = await prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT name FROM community_names
          WHERE city='${safeC}' AND district='${safeD}'
            AND source='gov_committee'
@@ -270,7 +271,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
       } else {
         // fallback：lvr_presale 用寬鬆路段名比對
         const safeAddrShort = addrShort.replace(/'/g, "''");
-        const fallbackRows = await prisma.$queryRawUnsafe<any[]>(
+        const fallbackRows = await prismaLvr.$queryRawUnsafe<any[]>(
           `SELECT project_name, COUNT(*) as n
            FROM lvr_presale
            WHERE city='${safeC}' AND district='${safeD}'

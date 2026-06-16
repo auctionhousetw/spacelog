@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient } from '@prisma/client';
 
 const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
 declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
@@ -20,7 +20,7 @@ export default async function LvrPage() {
   let hasData = false;
 
   try {
-    const rows = await prisma.$queryRawUnsafe<any[]>(`
+    const rows = await prismaLvr.$queryRawUnsafe<any[]>(`
       SELECT city,
              COUNT(*) as n,
              AVG(CASE WHEN total_price > 0 THEN total_price END) as avg,

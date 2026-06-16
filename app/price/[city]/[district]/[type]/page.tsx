@@ -1,10 +1,5 @@
-import { notFound } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+﻿import { notFound } from 'next/navigation';
+import prismaLvr from '@/lib/prisma-lvr';
 
 type Params = Promise<{ city: string; district: string; type: string }>;
 type SearchParams = Promise<{ page?: string; sort?: string; priceMin?: string; priceMax?: string }>;
@@ -20,7 +15,7 @@ export async function generateMetadata({ params }: { params: Params }) {
 
   let avg = 0, n = 0;
   try {
-    const rows = await prisma.$queryRawUnsafe<any[]>(
+    const rows = await prismaLvr.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg
        FROM lvr_land WHERE city='${c.replace(/'/g, "''")}' AND district='${d.replace(/'/g, "''")}' AND building_type='${t.replace(/'/g, "''")}' AND tx_type LIKE '%建物%'`
     );
@@ -78,11 +73,11 @@ export default async function PriceTypePage({
 
   try {
     const [fetched, countRows, statsRows, trendRows, otherRows] = await Promise.all([
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT * FROM lvr_land WHERE ${where} ORDER BY ${orderBy} LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`
       ),
-      prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*) as n FROM lvr_land WHERE ${where}`),
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(`SELECT COUNT(*) as n FROM lvr_land WHERE ${where}`),
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*) as n,
                 AVG(CASE WHEN total_price > 0 THEN total_price END) as avg,
                 AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit,
@@ -92,7 +87,7 @@ export default async function PriceTypePage({
          FROM lvr_land WHERE ${where}`,
       ),
       // 年度趨勢
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT SUBSTRING(tx_date_iso,1,4) as year,
                 COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,
@@ -103,7 +98,7 @@ export default async function PriceTypePage({
          GROUP BY SUBSTRING(tx_date_iso, 1, 4) HAVING SUBSTRING(tx_date_iso, 1, 4) >= '2020' ORDER BY 1`,
       ),
       // 同行政區其他建物類型入口
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT building_type, COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg
          FROM lvr_land

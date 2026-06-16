@@ -1,10 +1,5 @@
-import { notFound } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+﻿import { notFound } from 'next/navigation';
+import prismaLvr from '@/lib/prisma-lvr';
 
 type Params = Promise<{ city: string; district: string }>;
 
@@ -18,7 +13,7 @@ export async function generateMetadata({ params }: { params: Params }) {
   try {
     const safeC0 = c.replace(/'/g, "''");
     const safeD0 = d.replace(/'/g, "''");
-    const rows = await prisma.$queryRawUnsafe<any[]>(
+    const rows = await prismaLvr.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg,
               COUNT(DISTINCT project_name) as projects
        FROM lvr_presale WHERE city='${safeC0}' AND district='${safeD0}'`
@@ -47,7 +42,7 @@ export default async function PresaleDistrictPage({ params }: { params: Params }
 
   try {
     const [statsRows, projectRows, trendRows] = await Promise.all([
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit,
@@ -56,7 +51,7 @@ export default async function PresaleDistrictPage({ params }: { params: Params }
          FROM lvr_presale WHERE city='${safeC}' AND district='${safeD}'`
       ),
       // 按建案分組
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT project_name,
                 COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg,
@@ -73,7 +68,7 @@ export default async function PresaleDistrictPage({ params }: { params: Params }
          ORDER BY latest DESC, n DESC`
       ),
       // 年度走勢
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT SUBSTRING(tx_date_iso,1,4) as year,
                 COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,

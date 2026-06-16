@@ -5,6 +5,7 @@ const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
 declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
 const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+import prismaLvr from '@/lib/prisma-lvr';
 
 const BASE = process.env.NEXT_PUBLIC_BASE_URL || 'https://402law.house';
 const COMMUNITY_CHUNK = 45000;
@@ -149,7 +150,7 @@ export default async function sitemap(
 
     } else if (id === 2) {
       // 實價縣市頁
-      const lvrCities = await prisma.$queryRawUnsafe<{ city: string }[]>(
+      const lvrCities = await prismaLvr.$queryRawUnsafe<{ city: string }[]>(
         `SELECT DISTINCT city FROM lvr_land WHERE city IS NOT NULL AND city != '' ORDER BY city`
       ).catch(() => []);
       for (const { city } of lvrCities) {
@@ -157,7 +158,7 @@ export default async function sitemap(
       }
 
       // 實價行政區頁
-      const lvrDistricts = await prisma.$queryRawUnsafe<{ city: string; district: string }[]>(
+      const lvrDistricts = await prismaLvr.$queryRawUnsafe<{ city: string; district: string }[]>(
         `SELECT DISTINCT city, district FROM lvr_land
          WHERE city IS NOT NULL AND city != ''
            AND district IS NOT NULL AND district != ''
@@ -172,7 +173,7 @@ export default async function sitemap(
       }
 
       // 實價建物類型子頁
-      const lvrTypes = await prisma.$queryRawUnsafe<{ city: string; district: string; building_type: string }[]>(
+      const lvrTypes = await prismaLvr.$queryRawUnsafe<{ city: string; district: string; building_type: string }[]>(
         `SELECT DISTINCT city, district, building_type FROM lvr_land
          WHERE city IS NOT NULL AND district IS NOT NULL
            AND building_type IS NOT NULL AND building_type != ''
@@ -187,7 +188,7 @@ export default async function sitemap(
       }
 
       // 實價熱門路段頁（至少 5 筆成交）
-      const lvrRoads = await prisma.$queryRawUnsafe<{ city: string; district: string; road_name: string }[]>(
+      const lvrRoads = await prismaLvr.$queryRawUnsafe<{ city: string; district: string; road_name: string }[]>(
         `SELECT city, district,
                 CASE
                   WHEN STRPOS(address,'路') > 0
@@ -223,7 +224,7 @@ export default async function sitemap(
       }
 
       // 預售屋：縣市頁
-      const presaleCities = await prisma.$queryRawUnsafe<{ city: string }[]>(
+      const presaleCities = await prismaLvr.$queryRawUnsafe<{ city: string }[]>(
         `SELECT DISTINCT city FROM lvr_presale WHERE city IS NOT NULL AND city != '' ORDER BY city`
       ).catch(() => []);
       for (const { city } of presaleCities) {
@@ -231,7 +232,7 @@ export default async function sitemap(
       }
 
       // 預售屋：行政區頁
-      const presaleDistricts = await prisma.$queryRawUnsafe<{ city: string; district: string }[]>(
+      const presaleDistricts = await prismaLvr.$queryRawUnsafe<{ city: string; district: string }[]>(
         `SELECT DISTINCT city, district FROM lvr_presale
          WHERE city IS NOT NULL AND district IS NOT NULL ORDER BY city, district`
       ).catch(() => []);
@@ -240,7 +241,7 @@ export default async function sitemap(
       }
 
       // 預售屋：建案頁
-      const presaleProjects = await prisma.$queryRawUnsafe<{ city: string; district: string; project_name: string }[]>(
+      const presaleProjects = await prismaLvr.$queryRawUnsafe<{ city: string; district: string; project_name: string }[]>(
         `SELECT DISTINCT city, district, project_name FROM lvr_presale
          WHERE city IS NOT NULL AND district IS NOT NULL
            AND project_name IS NOT NULL AND project_name != ''

@@ -1,10 +1,5 @@
-import { notFound } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+﻿import { notFound } from 'next/navigation';
+import prismaLvr from '@/lib/prisma-lvr';
 
 type Params = Promise<{ city: string; district: string; addr: string }>;
 
@@ -28,7 +23,7 @@ export async function generateMetadata({ params }: { params: Params }) {
       return s || addr;
     };
     const shortA = strip(a).replace(/'/g, "''").replace(/%/g, '\\%');
-    const rows = await prisma.$queryRawUnsafe<any[]>(
+    const rows = await prismaLvr.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg
        FROM lvr_land WHERE city='${c.replace(/'/g, "''")}' AND district='${d.replace(/'/g, "''")}' AND address LIKE '%${shortA}%' AND tx_type LIKE '%建物%'`
     );
@@ -68,7 +63,7 @@ export default async function PriceAddressPage({ params }: { params: Params }) {
   try {
     const [fetched, statsRows, trendRows] = await Promise.all([
       // 所有同門牌號成交（依日期倒序）
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT * FROM lvr_land
          WHERE city='${safeC}' AND district='${safeD}'
            AND address LIKE '%${safeA}%'
@@ -76,7 +71,7 @@ export default async function PriceAddressPage({ params }: { params: Params }) {
          ORDER BY tx_date_iso DESC, address ASC
          LIMIT 200`
       ),
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit,
@@ -88,7 +83,7 @@ export default async function PriceAddressPage({ params }: { params: Params }) {
          WHERE city='${safeC}' AND district='${safeD}'
            AND address LIKE '%${safeA}%' AND tx_type LIKE '%建物%' AND total_price > 0`
       ),
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT SUBSTRING(tx_date_iso,1,4) as year,
                 COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,

@@ -1,10 +1,5 @@
-import { notFound } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+﻿import { notFound } from 'next/navigation';
+import prismaLvr from '@/lib/prisma-lvr';
 
 type Params = Promise<{ city: string }>;
 
@@ -28,13 +23,13 @@ export default async function LvrCityPage({ params }: { params: Params }) {
   const safeC = c.replace(/'/g, "''");
   try {
     const [statsRows, distRows] = await Promise.all([
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*) as n,
                 AVG(CASE WHEN total_price > 0 AND tx_type LIKE '%建物%' THEN total_price END) as avg_build,
                 MAX(tx_date_iso) as latest
          FROM lvr_land WHERE city = '${safeC}'`
       ),
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT district,
                 COUNT(*) as n,
                 COUNT(CASE WHEN tx_type LIKE '%建物%' THEN 1 END) as n_build,

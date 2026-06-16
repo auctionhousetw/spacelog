@@ -8,6 +8,7 @@ const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
 declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
 const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+import prismaLvr from '@/lib/prisma-lvr';
 
 // ─── 設計 Token（與 ArticleClient 同源） ──────────────────────────────────────
 // #c2632a  主色（磚紅橙）
@@ -365,7 +366,7 @@ export default async function ItemPage({
       `LIMIT 5`
     ),
     // 舊方法：同行政區均值（作為備用）
-    prisma.$queryRawUnsafe<any[]>(
+    prismaLvr.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n,
               AVG(CASE WHEN total_price > 0 THEN total_price END) as avg_price,
               AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit,
@@ -377,7 +378,7 @@ export default async function ItemPage({
     ).catch(() => []),
     // 新方法：同類型 + 相近坪數（近一年，不足退兩年）
     hasFilter
-      ? prisma.$queryRawUnsafe<any[]>(
+      ? prismaLvr.$queryRawUnsafe<any[]>(
           `SELECT COUNT(*) as n,
                   AVG(CASE WHEN total_price > 0 THEN total_price END) as avg_price,
                   AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit,
@@ -391,7 +392,7 @@ export default async function ItemPage({
         ).catch(() => [])
       : Promise.resolve([]),
     // 近期成交案例（條件篩選版，含 build_complete 供屋齡調整）
-    prisma.$queryRawUnsafe<any[]>(
+    prismaLvr.$queryRawUnsafe<any[]>(
       `SELECT address, total_price, unit_price_sqm, area_sqm, tx_date_iso,
               bedrooms, halls, floor, building_type, build_complete
        FROM lvr_land

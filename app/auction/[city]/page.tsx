@@ -6,6 +6,7 @@ const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
 declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
 const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+import prismaLvr from '@/lib/prisma-lvr';
 
 type Params = Promise<{ city: string }>;
 
@@ -45,7 +46,7 @@ export default async function CityPage({ params }: { params: Params }) {
        WHERE city='${safeC}' AND district IS NOT NULL AND district!=''
        GROUP BY district ORDER BY n DESC`
     ),
-    prisma.$queryRawUnsafe<any[]>(
+    prismaLvr.$queryRawUnsafe<any[]>(
       `SELECT AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price
        FROM lvr_land
        WHERE city='${safeC}' AND tx_type LIKE '%建物%'

@@ -5,6 +5,7 @@ const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
 declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
 const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+import prismaLvr from '@/lib/prisma-lvr';
 
 type Params = Promise<{ city: string; period: string }>;
 
@@ -76,7 +77,7 @@ export default async function LandReadjustmentHubPage({ params }: { params: Para
         ORDER BY auction_date DESC NULLS LAST, id DESC LIMIT 8
       `).catch(() => []),
       // 預售：用行政區（預售資料無地段資訊）
-      prisma.$queryRawUnsafe<any[]>(`
+      prismaLvr.$queryRawUnsafe<any[]>(`
         SELECT project_name, COUNT(*) as n,
                AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit,
                MAX(tx_date_iso) as last_date
@@ -86,7 +87,7 @@ export default async function LandReadjustmentHubPage({ params }: { params: Para
       `).catch(() => []),
       // 實價統計：有段名用精確段名 JOIN，否則用行政區
       hasSegs
-        ? prisma.$queryRawUnsafe<any[]>(`
+        ? prismaLvr.$queryRawUnsafe<any[]>(`
             SELECT l.district, COUNT(*) as n,
                    AVG(CASE WHEN l.unit_price_sqm>0 THEN l.unit_price_sqm END) as avg_unit
             FROM lvr_land l
@@ -96,7 +97,7 @@ export default async function LandReadjustmentHubPage({ params }: { params: Para
               AND l.tx_date_iso >= to_char(CURRENT_DATE - INTERVAL '2 years', 'YYYY-MM-DD')
             GROUP BY l.district
           `).catch(() => [])
-        : prisma.$queryRawUnsafe<any[]>(`
+        : prismaLvr.$queryRawUnsafe<any[]>(`
             SELECT district, COUNT(*) as n,
                    AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit
             FROM lvr_land
@@ -107,7 +108,7 @@ export default async function LandReadjustmentHubPage({ params }: { params: Para
           `).catch(() => []),
       // 實價明細：有段名用精確段名 JOIN，否則用行政區
       hasSegs
-        ? prisma.$queryRawUnsafe<any[]>(`
+        ? prismaLvr.$queryRawUnsafe<any[]>(`
             SELECT l.address, l.district, l.total_price, l.unit_price_sqm, l.area_sqm, l.tx_date_iso, l.floor, l.building_type
             FROM lvr_land l
             JOIN lvr_land_section ls ON ls.tx_id = l.id
@@ -116,7 +117,7 @@ export default async function LandReadjustmentHubPage({ params }: { params: Para
               AND l.tx_date_iso >= to_char(CURRENT_DATE - INTERVAL '2 years', 'YYYY-MM-DD')
             ORDER BY l.tx_date_iso DESC LIMIT 6
           `).catch(() => [])
-        : prisma.$queryRawUnsafe<any[]>(`
+        : prismaLvr.$queryRawUnsafe<any[]>(`
             SELECT address, district, total_price, unit_price_sqm, area_sqm, tx_date_iso, floor, building_type
             FROM lvr_land
             WHERE city='${safeCity}' AND district IN (${distCond})

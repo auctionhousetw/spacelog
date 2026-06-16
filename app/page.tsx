@@ -6,6 +6,7 @@ const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
 declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
 const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+import prismaLvr from '@/lib/prisma-lvr';
 
 export const revalidate = 1800;
 
@@ -26,10 +27,10 @@ const getHomepageData = unstable_cache(
                   COUNT(CASE WHEN auction_date >= to_char(CURRENT_DATE - INTERVAL '14 days', 'YYYY-MM-DD') THEN 1 END) as recent
            FROM houses`
         ),
-        prisma.$queryRawUnsafe<any[]>(
+        prismaLvr.$queryRawUnsafe<any[]>(
           `SELECT COUNT(*) as total FROM lvr_land`
         ).catch(() => [{ total: 0 }]),
-        prisma.$queryRawUnsafe<any[]>(
+        prismaLvr.$queryRawUnsafe<any[]>(
           `SELECT COUNT(*) as total FROM lvr_presale`
         ).catch(() => [{ total: 0 }]),
         prisma.$queryRawUnsafe<any[]>(
@@ -46,7 +47,7 @@ const getHomepageData = unstable_cache(
            WHERE city IS NOT NULL AND city != ''
            GROUP BY city ORDER BY n DESC`
         ),
-        prisma.$queryRawUnsafe<any[]>(
+        prismaLvr.$queryRawUnsafe<any[]>(
           `SELECT city, COUNT(*) as n FROM lvr_presale
            WHERE city IS NOT NULL AND city != ''
            GROUP BY city ORDER BY n DESC`

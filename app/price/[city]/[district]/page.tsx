@@ -1,11 +1,6 @@
-import { notFound } from 'next/navigation';
+﻿import { notFound } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
-import { PrismaClient } from '@prisma/client';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+import prismaLvr from '@/lib/prisma-lvr';
 
 type Params = Promise<{ city: string; district: string }>;
 type SearchParams = Promise<{
@@ -44,16 +39,16 @@ const getDistrictStaticData = unstable_cache(
 
     const [metaRows, bldTypeRows, bldTypeStatsRows, roadStatsRows, yearTrendRows, priceRangeRows] =
       await Promise.all([
-        prisma.$queryRawUnsafe<any[]>(
+        prismaLvr.$queryRawUnsafe<any[]>(
           `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg
            FROM lvr_land WHERE ${baseDW} AND tx_type LIKE '%建物%'`
         ),
-        prisma.$queryRawUnsafe<any[]>(
+        prismaLvr.$queryRawUnsafe<any[]>(
           `SELECT DISTINCT building_type FROM lvr_land
            WHERE ${baseDW} AND building_type IS NOT NULL AND building_type != ''
            ORDER BY building_type`
         ),
-        prisma.$queryRawUnsafe<any[]>(
+        prismaLvr.$queryRawUnsafe<any[]>(
           `SELECT building_type,
                   COUNT(*) as n,
                   AVG(CASE WHEN total_price > 0 THEN total_price END) as avg_price,
@@ -66,7 +61,7 @@ const getDistrictStaticData = unstable_cache(
              AND total_price > 0
            GROUP BY building_type ORDER BY n DESC LIMIT 8`
         ),
-        prisma.$queryRawUnsafe<any[]>(
+        prismaLvr.$queryRawUnsafe<any[]>(
           `SELECT
              CASE
                WHEN STRPOS(address,'路') > 0
@@ -94,7 +89,7 @@ const getDistrictStaticData = unstable_cache(
            HAVING COUNT(*) >= 2
            ORDER BY avg_unit DESC LIMIT 10`
         ),
-        prisma.$queryRawUnsafe<any[]>(
+        prismaLvr.$queryRawUnsafe<any[]>(
           `SELECT
              SUBSTRING(tx_date_iso, 1, 4) as year,
              COUNT(*) as n,
@@ -108,7 +103,7 @@ const getDistrictStaticData = unstable_cache(
            HAVING SUBSTRING(tx_date_iso, 1, 4) >= '2020' AND SUBSTRING(tx_date_iso, 1, 4) <= '2030'
            ORDER BY 1`
         ),
-        prisma.$queryRawUnsafe<any[]>(
+        prismaLvr.$queryRawUnsafe<any[]>(
           `SELECT
              CASE
                WHEN total_price < 3000000   THEN '300萬以下'
@@ -210,15 +205,15 @@ export default async function LvrDistrictPage({
       // 靜態統計資料（city+district 固定，24h 快取）
       getDistrictStaticData(c, d),
       // 交易列表（依篩選條件動態查詢）
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT * FROM lvr_land WHERE ${where} ORDER BY ${orderBy} LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`
       ),
       // 總筆數
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*) as n FROM lvr_land WHERE ${where}`,
       ),
       // 基本統計
-      prisma.$queryRawUnsafe<any[]>(
+      prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*) as n,
                 AVG(CASE WHEN total_price > 0 THEN total_price END) as avg,
                 AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit,
@@ -242,7 +237,7 @@ export default async function LvrDistrictPage({
     const addrs = [...new Set(fetched.map((r: any) => r.address).filter(Boolean))] as string[];
     if (addrs.length > 0) {
       const placeholders = addrs.map((_, i) => `$${i + 1}`).join(',');
-      const histRows = await prisma.$queryRawUnsafe<any[]>(
+      const histRows = await prismaLvr.$queryRawUnsafe<any[]>(
         `SELECT address,
                 COUNT(*) as cnt,
                 MIN(tx_date_iso) as earliest,
