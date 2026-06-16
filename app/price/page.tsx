@@ -1,9 +1,4 @@
-﻿import { PrismaClient } from '@prisma/client';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+﻿import prismaLvr from '@/lib/prisma-lvr';
 
 export const metadata = {
   title: '全台實價登錄查詢 | 法拍屋資訊平台',

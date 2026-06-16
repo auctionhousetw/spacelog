@@ -1,10 +1,5 @@
-﻿import { PrismaClient } from '@prisma/client';
-import { notFound } from 'next/navigation';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+﻿import { notFound } from 'next/navigation';
+import prismaLvr from '@/lib/prisma-lvr';
 
 export const metadata = {
   title: '預售屋成交行情 | 全台各縣市建案實價登錄',
