@@ -31,7 +31,8 @@ export async function generateMetadata({ params }: { params: Params }) {
     };
     const safeCC = c.replace(/'/g, "''");
     const safeDD = d.replace(/'/g, "''");
-    let metaCondition = `address LIKE '%${stripMeta(a).replace(/'/g, "''").replace(/%/g, '\\%')}%'`;
+    const normAddr = `translate(address,'０１２３４５６７８９臺','0123456789台')`;
+    let metaCondition = `${normAddr} LIKE '%${stripMeta(a).replace(/'/g, "''").replace(/%/g, '\\%')}%'`;
     try {
       const cnMeta = await prisma.$queryRawUnsafe<any[]>(
         `SELECT addrs FROM community_names WHERE city='${safeCC}' AND district='${safeDD}' AND name='${a.replace(/'/g, "''")}' LIMIT 1`
@@ -40,7 +41,7 @@ export async function generateMetadata({ params }: { params: Params }) {
         let raw: string[] = [];
         try { const f = cnMeta[0].addrs; raw = Array.isArray(f) ? f : JSON.parse(String(f)); } catch {}
         const parts = raw.map(stripMeta).filter(Boolean).slice(0, 30)
-          .map(s => `address LIKE '%${s.replace(/'/g, "''").replace(/%/g, '\\%')}%'`);
+          .map(s => `${normAddr} LIKE '%${s.replace(/'/g, "''").replace(/%/g, '\\%')}%'`);
         if (parts.length > 0) metaCondition = parts.length > 1 ? `(${parts.join(' OR ')})` : parts[0];
       }
     } catch {}
@@ -94,16 +95,18 @@ export default async function CommunityPage({ params }: { params: Params }) {
   const safeA = addrShort.replace(/'/g, "''");
 
   // SQL 地址條件：社區名稱時 OR 聚合所有門牌，門牌時單一 LIKE
+  // translate() 把全形數字和臺→台正規化，解決 lvr_land 全形 vs community_names 半形不符問題
+  const NA = `translate(address,'０１２３４５６７８９臺','0123456789台')`;
   let addrCondition: string;
   if (communityNameMatch && communityNameMatch.allAddrs.length > 0) {
     const parts = communityNameMatch.allAddrs
       .map(a2 => stripPrefix(a2))
       .filter(Boolean)
       .slice(0, 30)
-      .map(s => `address LIKE '%${s.replace(/'/g, "''").replace(/%/g, '\\%')}%'`);
-    addrCondition = parts.length > 1 ? `(${parts.join(' OR ')})` : (parts[0] ?? `address LIKE '%${safeA}%'`);
+      .map(s => `${NA} LIKE '%${s.replace(/'/g, "''").replace(/%/g, '\\%')}%'`);
+    addrCondition = parts.length > 1 ? `(${parts.join(' OR ')})` : (parts[0] ?? `${NA} LIKE '%${safeA}%'`);
   } else {
-    addrCondition = `address LIKE '%${safeA}%'`;
+    addrCondition = `${NA} LIKE '%${safeA}%'`;
   }
 
   // 提取路段名（用於周邊查詢）
@@ -261,7 +264,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
       ).catch(() => []);
 
       // 建案名稱：只用政府委員會來源（gov_committee），避免侵權
-      const nameRows = await prismaLvr.$queryRawUnsafe<any[]>(
+      const nameRows = await prisma.$queryRawUnsafe<any[]>(
         `SELECT name FROM community_names
          WHERE city='${safeC}' AND district='${safeD}'
            AND source='gov_committee'

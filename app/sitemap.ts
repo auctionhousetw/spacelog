@@ -18,7 +18,10 @@ export async function generateSitemaps() {
       `SELECT COUNT(*) as count FROM community_names
        WHERE name IS NOT NULL AND name != ''
          AND city IS NOT NULL AND city != ''
-         AND district IS NOT NULL AND district != ''`
+         AND district IS NOT NULL AND district != ''
+         AND name NOT LIKE '%/%'
+         AND name NOT LIKE '%#%'
+         AND name NOT LIKE '%?%'`
     );
     const count = Number(rows[0]?.count ?? 0);
     const communityPages = Math.max(1, Math.ceil(count / COMMUNITY_CHUNK));
@@ -264,6 +267,9 @@ export default async function sitemap(
          WHERE name IS NOT NULL AND name != ''
            AND city IS NOT NULL AND city != ''
            AND district IS NOT NULL AND district != ''
+           AND name NOT LIKE '%/%'
+           AND name NOT LIKE '%#%'
+           AND name NOT LIKE '%?%'
          ORDER BY city, district, name
          LIMIT ${COMMUNITY_CHUNK} OFFSET ${offset}`
       ).catch(() => []);
