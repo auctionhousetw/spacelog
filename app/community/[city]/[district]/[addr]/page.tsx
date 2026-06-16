@@ -7,6 +7,8 @@ const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
 import prismaLvr from '@/lib/prisma-lvr';
 
+export const revalidate = 86400;
+
 type Params = Promise<{ city: string; district: string; addr: string }>;
 
 const sqmToPing           = (sqm: number) => sqm / 3.30579;

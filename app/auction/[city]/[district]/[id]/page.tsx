@@ -10,6 +10,8 @@ const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
 import prismaLvr from '@/lib/prisma-lvr';
 
+export const revalidate = 86400;
+
 // ─── 設計 Token（與 ArticleClient 同源） ──────────────────────────────────────
 // #c2632a  主色（磚紅橙）
 // #fff8f4  暖奶油底

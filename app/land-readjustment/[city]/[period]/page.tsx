@@ -7,6 +7,8 @@ const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
 import prismaLvr from '@/lib/prisma-lvr';
 
+export const revalidate = 86400;
+
 type Params = Promise<{ city: string; period: string }>;
 
 const PERIOD_MAP: Record<string, {
