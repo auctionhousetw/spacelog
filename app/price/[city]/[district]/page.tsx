@@ -431,6 +431,9 @@ export default async function LvrDistrictPage({
           <span className="hero-sub">
             {isAll ? `${c}全區域` : `${d} 行政區`} 共{' '}
             <strong style={{ color: '#2a5298' }}>{totalCount.toLocaleString()}</strong> 筆成交記錄
+            {distStats?.oldest && distStats?.latest
+              ? <>（{distStats.oldest.slice(0, 4)}–{distStats.latest.slice(0, 4)} 年）</>
+              : null}
             {avgWan ? <>，建物成交均價約 <strong style={{ color: '#2a5298' }}>{avgWan.toLocaleString()} 萬</strong></> : ''}
             {avgUnit ? <>，均坪單價 <strong style={{ color: '#2a5298' }}>{avgUnit.toFixed(1)} 萬/坪</strong></> : ''}
             。資料來源：內政部不動產交易實價登錄。
