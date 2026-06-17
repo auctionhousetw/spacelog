@@ -38,6 +38,7 @@ export default async function CommunityDistrictPage({ params }: { params: Params
         AND LENGTH(district) BETWEEN 2 AND 4
         AND district ~ '[區鎮鄉市]$'
         AND (LENGTH(district) < 4 OR district !~ '[區鎮鄉市][區鎮鄉市]$')
+        AND source != '591'
       ORDER BY COALESCE(tx_count, 0) DESC, name ASC
       LIMIT 2000
     `);
@@ -164,7 +165,7 @@ export default async function CommunityDistrictPage({ params }: { params: Params
         </div>
 
         <div style={{ marginTop: '2rem', padding: '1rem 1.25rem', background: '#f9f9f8', border: '1px solid #ececec', fontSize: '.8rem', color: '#888', lineHeight: 1.9 }}>
-          資料來源：政府管委會公開資料（標示「管委會」）、實價登錄、好房網、591 等平台整合。
+          資料來源：政府管委會公開資料（標示「管委會」）、實價登錄、好房網等多來源整合。
           點選社區可查詢歷年成交走勢、各層成交記錄與法拍資訊。
         </div>
 
