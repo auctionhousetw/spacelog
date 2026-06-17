@@ -6,6 +6,8 @@ declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSin
 const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
 
+export const revalidate = 86400;
+
 export const metadata: Metadata = {
   title: '逾期未辦繼承登記土地公告查詢',
   description: '全台各縣市地政事務所逾期未辦繼承登記土地最新公告，含公告期間、受理期限與官方連結。公告期滿後可申請法院代為標售，是法拍前期重要案源。',

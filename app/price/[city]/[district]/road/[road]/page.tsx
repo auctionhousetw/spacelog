@@ -1,6 +1,8 @@
 ﻿import { notFound } from 'next/navigation';
 import prismaLvr from '@/lib/prisma-lvr';
 
+export const revalidate = 86400;
+
 type Params = Promise<{ city: string; district: string; road: string }>;
 type SearchParams = Promise<{ page?: string; sort?: string }>;
 

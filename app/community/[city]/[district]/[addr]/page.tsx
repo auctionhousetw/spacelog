@@ -79,15 +79,23 @@ export default async function CommunityPage({ params }: { params: Params }) {
 
   // 先查 community_names：若 [addr] 參數是社區名稱，用 addrs 陣列聚合所有門牌的 lvr_land
   let communityNameMatch: { name: string; addr: string; allAddrs: string[] } | null = null;
+  let communityInfo: { units: string | null; buildingAge: string | null; avgArea: string | null; buildingTypeHf: string | null } | null = null;
   try {
     const cnRows = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT name, addr, addrs FROM community_names WHERE city='${safeC}' AND district='${safeD}' AND name='${a.replace(/'/g, "''")}' LIMIT 1`
+      `SELECT name, addr, addrs, units, building_age, avg_area, building_type_hf
+       FROM community_names WHERE city='${safeC}' AND district='${safeD}' AND name='${a.replace(/'/g, "''")}' LIMIT 1`
     );
     if (cnRows[0]?.name) {
       let rawAddrs: string[] = [];
       try { const f = cnRows[0].addrs; rawAddrs = Array.isArray(f) ? f : JSON.parse(String(f || '[]')); } catch {}
       const allAddrs = rawAddrs.length > 0 ? rawAddrs : (cnRows[0].addr ? [String(cnRows[0].addr)] : []);
       communityNameMatch = { name: String(cnRows[0].name), addr: String(cnRows[0].addr || ''), allAddrs };
+      communityInfo = {
+        units:          cnRows[0].units        ? String(cnRows[0].units)          : null,
+        buildingAge:    cnRows[0].building_age  ? String(cnRows[0].building_age)  : null,
+        avgArea:        cnRows[0].avg_area      ? String(cnRows[0].avg_area)      : null,
+        buildingTypeHf: cnRows[0].building_type_hf ? String(cnRows[0].building_type_hf) : null,
+      };
     }
   } catch { /* ignore */ }
 
@@ -293,6 +301,9 @@ export default async function CommunityPage({ params }: { params: Params }) {
   }
 
   const totalCount  = Number(lvrStats.n);
+
+  if (totalCount === 0 && nearbyRows.length === 0 && auctionRecords.length === 0) notFound();
+
   const avgWan      = lvrStats.avg  ? Math.round(Number(lvrStats.avg) / 10000) : null;
   const avgUnit     = lvrStats.avg_unit ? unitSqmToWanPerPing(Number(lvrStats.avg_unit)) : null;
   const maxWan      = lvrStats.max_p ? Math.round(Number(lvrStats.max_p) / 10000) : null;
@@ -425,11 +436,11 @@ export default async function CommunityPage({ params }: { params: Params }) {
           </h1>
           {totalCount === 0 ? (
             <p style={{ fontSize: '.88rem', color: '#999', fontWeight: 300, lineHeight: 2, margin: 0 }}>
-              此地址在 2024 年後暫無實價登錄成交記錄。
+              此地址在實價登錄資料庫中暫無成交記錄。
               {auctionRecords.length > 0 && <>
                 {' '}曾有 <strong style={{ color: '#c2632a' }}>{auctionRecords.length} 筆法拍記錄</strong>。
               </>}
-              周邊路段成交行情請參考下方區塊。
+              {nearbyRows.length > 0 && <> 周邊路段近期成交行情請參考下方。</>}
             </p>
           ) : (
             <p style={{ fontSize: '.88rem', color: '#888', fontWeight: 300, lineHeight: 2, margin: 0 }}>
@@ -459,6 +470,23 @@ export default async function CommunityPage({ params }: { params: Params }) {
             </p>
           )}
         </div>
+
+        {/* 社區基本資料（housefun 政府建管資料彙整） */}
+        {communityInfo && (communityInfo.units || communityInfo.buildingAge || communityInfo.avgArea || communityInfo.buildingTypeHf) && (
+          <div style={{ background: '#fff', borderBottom: '1px solid #ececec', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', marginBottom: 1 }}>
+            {[
+              { label: '建物類型', value: communityInfo.buildingTypeHf },
+              { label: '總戶數',   value: communityInfo.units ? `${communityInfo.units} 戶` : null },
+              { label: '主建物均坪', value: communityInfo.avgArea },
+              { label: '屋齡',     value: communityInfo.buildingAge },
+            ].filter(s => s.value).map((s, i, arr) => (
+              <div key={s.label} style={{ padding: '.85rem clamp(.75rem,2vw,1.1rem)', borderRight: i < arr.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
+                <div style={{ fontSize: '.68rem', color: '#bbb', letterSpacing: '.05em', marginBottom: '.25rem' }}>{s.label}</div>
+                <div style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '.9rem', fontWeight: 600, color: '#444' }}>{s.value}</div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* 統計四格 */}
         <div style={{ background: '#fff', borderBottom: '1px solid #ececec', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 1 }}>
@@ -730,7 +758,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
         )}
 
         {/* 實價登錄成交記錄 */}
-        <div className="sec-head">📊 實價登錄成交記錄（{totalCount} 筆）</div>
+        {totalCount > 0 && <><div className="sec-head">📊 實價登錄成交記錄（{totalCount} 筆）</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginBottom: '2rem' }}>
           {lvrRecords.map((r: any, i: number) => {
             const priceWan = r.total_price ? Math.round(r.total_price / 10000) : null;
@@ -765,10 +793,10 @@ export default async function CommunityPage({ params }: { params: Params }) {
               </div>
             );
           })}
-        </div>
+        </div></>}
 
-        {/* 成交行情解讀 */}
-        <div style={{ background: '#f0f5ff', border: '1px solid #e0e8f8', borderLeft: '4px solid #2a5298', padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
+        {/* 成交行情解讀：僅在有成交資料時顯示 */}
+        {totalCount > 0 && <div style={{ background: '#f0f5ff', border: '1px solid #e0e8f8', borderLeft: '4px solid #2a5298', padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
           <h2 style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '.92rem', fontWeight: 700, color: '#2a5298', marginTop: 0, marginBottom: '.7rem' }}>
             成交行情解讀
           </h2>
@@ -793,7 +821,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
               : <> 此地址<strong style={{ color: '#3a7d2c' }}>無法拍記錄</strong>，產權相對穩定。</>
             }
           </p>
-        </div>
+        </div>}
 
         {/* 返回行政區 */}
         <div style={{ textAlign: 'center' }}>

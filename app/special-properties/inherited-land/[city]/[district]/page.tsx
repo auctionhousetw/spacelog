@@ -31,6 +31,7 @@ export default async function DistrictInheritedLandPage({ params }: { params: Pa
 
   let records: any[] = [];
   let auctionCount = 0;
+  let auctionRows: any[] = [];
   try {
     [records] = await Promise.all([
       prisma.$queryRawUnsafe<any[]>(`
@@ -42,10 +43,21 @@ export default async function DistrictInheritedLandPage({ params }: { params: Pa
         ORDER BY announcement_start DESC NULLS LAST
       `),
     ]);
-    const aRows = await prisma.$queryRawUnsafe<any[]>(`
-      SELECT COUNT(*) as n FROM houses WHERE city='${safeCity}' AND district='${safeDist}'
-    `).catch(() => []);
+    const [aRows, aList] = await Promise.all([
+      prisma.$queryRawUnsafe<any[]>(`
+        SELECT COUNT(*) as n FROM houses WHERE city='${safeCity}' AND district='${safeDist}'
+      `).catch(() => []),
+      prisma.$queryRawUnsafe<any[]>(`
+        SELECT id, case_number, address, auction_date, floor, area,
+               min_price, appraisal_price, source
+        FROM houses
+        WHERE city='${safeCity}' AND district='${safeDist}'
+        ORDER BY auction_date DESC NULLS LAST
+        LIMIT 5
+      `).catch(() => []),
+    ]);
     auctionCount = Number(aRows[0]?.n ?? 0);
+    auctionRows = aList;
   } catch { /* ignore */ }
 
   if (records.length === 0) notFound();
@@ -89,6 +101,14 @@ export default async function DistrictInheritedLandPage({ params }: { params: Pa
         .btn:hover { background: #fff8f4; }
         .btn.blue { border-color: #b8d0f0; color: #2a5298; }
         .btn.blue:hover { background: #f0f5ff; }
+        .section-title { font-family: 'Noto Serif TC', serif; font-size: .88rem; font-weight: 700; color: #1a2a4a; border-left: 3px solid #c2632a; padding-left: .75rem; margin: 2rem 0 .75rem; }
+        .auction-list { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1.5rem; }
+        .auction-item { background: #fff; border: 1px solid #f0e0d0; padding: .75rem 1rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+        .auction-item-addr { font-size: .82rem; color: #333; flex: 1; min-width: 160px; }
+        .auction-item-meta { font-size: .72rem; color: #aaa; white-space: nowrap; }
+        .auction-item-price { font-size: .82rem; color: #c2632a; font-weight: 600; white-space: nowrap; }
+        .auction-item-link { font-size: .72rem; color: #2a5298; text-decoration: none; white-space: nowrap; }
+        .auction-item-link:hover { text-decoration: underline; }
         @media(max-width:640px){ .kpi3 { grid-template-columns: 1fr 1fr; } }
       `}</style>
 
@@ -207,6 +227,42 @@ export default async function DistrictInheritedLandPage({ params }: { params: Pa
             </div>
           );
         })}
+
+        {auctionRows.length > 0 && (
+          <div>
+            <div className="section-title">
+              {dist} 近期法拍物件（{auctionCount.toLocaleString()} 筆，顯示最新 {auctionRows.length} 筆）
+            </div>
+            <div className="auction-list">
+              {auctionRows.map((a: any, i: number) => {
+                const minPriceW = a.min_price ? Math.round(Number(a.min_price) / 10000) : null;
+                return (
+                  <div key={i} className="auction-item">
+                    <div className="auction-item-addr">{a.address || '—'}</div>
+                    <div className="auction-item-meta">
+                      {a.auction_date ? String(a.auction_date).slice(0, 10) : ''}
+                      {a.floor ? ` · ${a.floor}` : ''}
+                      {a.area ? ` · ${Number(a.area).toFixed(1)}㎡` : ''}
+                    </div>
+                    {minPriceW && (
+                      <div className="auction-item-price">底價 {minPriceW.toLocaleString()} 萬</div>
+                    )}
+                    <a href={`/auction/${encodeURIComponent(city)}/${encodeURIComponent(dist)}/${encodeURIComponent(a.case_number || a.id)}`}
+                      className="auction-item-link">
+                      查看詳情 →
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ textAlign: 'right', marginBottom: '1.5rem' }}>
+              <a href={`/auction/${encodeURIComponent(city)}/${encodeURIComponent(dist)}`}
+                style={{ fontSize: '.78rem', color: '#c2632a', textDecoration: 'none' }}>
+                查看 {dist} 全部 {auctionCount.toLocaleString()} 筆法拍屋 →
+              </a>
+            </div>
+          </div>
+        )}
 
         <div className="cta-box">
           <div className="cta-text">
