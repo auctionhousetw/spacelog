@@ -6,6 +6,8 @@ declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSin
 const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
 
+export const revalidate = 86400;
+
 export const metadata: Metadata = {
   title: '區段徵收開發案查詢 | 台中・新北・桃園',
   description: '台灣各縣市政府辦理區段徵收開發案資訊，包含開發中與已完成案件。被徵收土地所有人可查詢補償費、抵價地分配，並了解申請程序與代書服務。',
@@ -28,6 +30,8 @@ export default async function RezoningPage() {
       SELECT city, case_name, status, content_summary, source_url
       FROM rezoning_case
       WHERE city IS NOT NULL AND case_name IS NOT NULL
+        AND (case_name LIKE '%區段徵收%' OR case_name LIKE '%開發案%' OR case_name LIKE '%徵收區%')
+        AND length(case_name) >= 8
       ORDER BY city,
                CASE WHEN status = '開發中' THEN 0 ELSE 1 END,
                case_name
