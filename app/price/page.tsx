@@ -1,3 +1,4 @@
+export const revalidate = 86400;
 ﻿import prismaLvr from '@/lib/prisma-lvr';
 
 export const metadata = {

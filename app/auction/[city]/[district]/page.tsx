@@ -1,3 +1,4 @@
+export const revalidate = 86400;
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PrismaClient } from '@prisma/client';

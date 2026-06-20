@@ -1,3 +1,4 @@
+export const revalidate = 86400;
 import { PrismaClient } from '@prisma/client';
 
 const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });

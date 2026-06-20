@@ -1,3 +1,4 @@
+export const revalidate = 86400;
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
