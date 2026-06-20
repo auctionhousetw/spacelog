@@ -107,12 +107,18 @@ export default async function DistrictPage({
 
   const [statsRows, listings, otherDistricts, countRow, typeRows, lvrRow, roadRows, roundRows, inheritedRows] = await Promise.all([
     prisma.$queryRawUnsafe<any[]>(
-      `SELECT COUNT(*) AS n,
+      `WITH deduped AS (
+         SELECT DISTINCT ON (LOWER(REPLACE(address,' ','')), auction_date)
+                price, auction_date
+         FROM houses WHERE ${baseWhere}
+         ORDER BY LOWER(REPLACE(address,' ','')), auction_date, price DESC NULLS LAST
+       )
+       SELECT COUNT(*) AS n,
               AVG(CASE WHEN price>0 THEN price END) AS avg,
               MIN(CASE WHEN price>0 THEN price END) AS lo,
               MAX(CASE WHEN price>0 THEN price END) AS hi,
               MAX(CASE WHEN auction_date!='' THEN auction_date END) AS latest
-       FROM houses WHERE ${baseWhere}`
+       FROM deduped`
     ),
     prisma.$queryRawUnsafe<any[]>(
       `WITH deduped AS (
