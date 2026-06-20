@@ -115,9 +115,16 @@ export default async function DistrictPage({
        FROM houses WHERE ${baseWhere}`
     ),
     prisma.$queryRawUnsafe<any[]>(
-      `SELECT id, title, address, price, area, unit_price, auction_date, type, category,
+      `WITH deduped AS (
+         SELECT *, ROW_NUMBER() OVER (
+           PARTITION BY LOWER(REPLACE(address,' ','')), auction_date
+           ORDER BY price DESC NULLS LAST
+         ) AS rn
+         FROM houses WHERE ${whereStr}
+       )
+       SELECT id, title, address, price, area, unit_price, auction_date, type, category,
               auction_round, delivery, status, layout, floor, is_agent_featured
-       FROM houses WHERE ${whereStr}
+       FROM deduped WHERE rn = 1
        ORDER BY ${orderByStr}
        LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`
     ),
@@ -128,7 +135,11 @@ export default async function DistrictPage({
        GROUP BY district ORDER BY n DESC`
     ),
     prisma.$queryRawUnsafe<any[]>(
-      `SELECT COUNT(*) as n FROM houses WHERE ${whereStr}`
+      `SELECT COUNT(*) as n FROM (
+         SELECT DISTINCT ON (LOWER(REPLACE(address,' ','')), auction_date) id
+         FROM houses WHERE ${whereStr}
+         ORDER BY LOWER(REPLACE(address,' ','')), auction_date, price DESC NULLS LAST
+       ) AS deduped`
     ),
     prisma.$queryRawUnsafe<{ type: string; n: number }[]>(
       `SELECT type, COUNT(*) as n FROM houses
