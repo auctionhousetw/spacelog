@@ -1207,6 +1207,17 @@ export default async function ItemPage({
                   r.total_ping ? `${r.total_ping} 坪` : '',
                   displayAuctionDate ? `開標 ${displayAuctionDate}` : '',
                 ].filter(Boolean).join('・')}
+                watchItem={{
+                  id,
+                  title: item.title?.replace(/-[^-]+[市縣].*$/, '') || item.address || id,
+                  address: item.address || undefined,
+                  price: item.price,
+                  city: item.city || cityDecoded,
+                  district: item.district || distDecoded,
+                  auction_date: displayAuctionDate || undefined,
+                  delivery: r.delivery_disp || undefined,
+                  url: `${BASE}/auction/${encodeURIComponent(item.city || cityDecoded)}/${encodeURIComponent(item.district || distDecoded)}/${id}`,
+                }}
               />
 
             </div>
