@@ -491,6 +491,51 @@ export default async function ItemPage({
     ? Math.round((1 - item.price / (estimatedValueWan * 10000)) * 100)
     : discountVsMarket;
 
+  // ── 決策 Widget 試算 ──────────────────────────────────────────────────────────
+  const depositWanCalc = r.deposit
+    ? (parseInt(r.deposit.replace(/[^\d]/g, '')) || null)
+    : (item.price ? Math.round(item.price * 0.2 / 10000) : null);
+  const bidLoWan  = item.price ? Math.round(item.price / 10000) : null;
+  const bidHiWan  = item.price ? Math.round(item.price * 1.25 / 10000) : null;
+  const cashLoWan = bidLoWan   ? Math.round(bidLoWan  * 0.3) : null;
+  const cashHiWan = bidHiWan   ? Math.round(bidHiWan  * 0.3) : null;
+  const loanLoWan = bidLoWan   ? Math.round(bidLoWan  * 0.7) : null;
+  const loanHiWan = bidHiWan   ? Math.round(bidHiWan  * 0.7) : null;
+
+  const dScore = discountVsEstimated ?? discountVsMarket;
+  let wScore = 0;
+  if (dScore !== null) {
+    if      (dScore >= 25) wScore += 3;
+    else if (dScore >= 15) wScore += 2;
+    else if (dScore >=  5) wScore += 1;
+    else if (dScore <   0) wScore -= 2;
+  }
+  const delivStr = r.delivery_disp || '';
+  if (delivStr && !delivStr.includes('不')) wScore += 1;
+  else if (delivStr.includes('不'))         wScore -= 1;
+  if (roundNum >= 3) wScore += 1;
+
+  let wVerdict = '資料不足，建議實地查證';
+  let wColor   = '#888';
+  let wBg      = '#fafafa';
+  let wIcon    = 'ℹ️';
+  let wSub     = '請確認點交情形與法院最新公告';
+  if (dScore !== null) {
+    if (wScore >= 4) {
+      wVerdict = '高折扣低風險，值得積極考慮'; wColor = '#3a7d2c'; wBg = '#f4fbf0'; wIcon = '✅';
+      wSub = '建議確認實地狀況後投標';
+    } else if (wScore >= 2) {
+      wVerdict = '具投資潛力，值得進一步評估'; wColor = '#c2632a'; wBg = '#fff8f4'; wIcon = '⚡';
+      wSub = '建議確認點交情形與市場均價';
+    } else if (wScore >= 0) {
+      wVerdict = '條件一般，謹慎評估'; wColor = '#b07340'; wBg = '#fffbf0'; wIcon = '⚠️';
+      wSub = '建議實地勘查並與市場均價比較';
+    } else {
+      wVerdict = '折扣有限或風險較高，建議觀望'; wColor = '#b03a3a'; wBg = '#fff4f4'; wIcon = '❌';
+      wSub = '可等下一拍或尋找其他物件';
+    }
+  }
+
   // ── 共用樣式 ──────────────────────────────────────────────────────────────
   const cardStyle: React.CSSProperties = {
     background: '#fff',
@@ -571,9 +616,10 @@ export default async function ItemPage({
         .fp-rel-row:hover { background: #fff8f4; }
 
         @media (max-width: 720px) {
-          .fp-main  { grid-template-columns: 1fr !important; }
-          .fp-quick { grid-template-columns: repeat(3, 1fr) !important; }
-          .fp-stat  { grid-template-columns: 1fr 1fr !important; }
+          .fp-main          { grid-template-columns: 1fr !important; }
+          .fp-quick         { grid-template-columns: repeat(3, 1fr) !important; }
+          .fp-stat          { grid-template-columns: 1fr 1fr !important; }
+          .fp-decision-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
 
@@ -659,6 +705,99 @@ export default async function ItemPage({
               </div>
             ))}
           </div>
+
+          {/* ══════════════════════════════════════════════════════════
+              決策 Widget
+              ══════════════════════════════════════════════════════════ */}
+          {item.price && (
+          <div style={{ background: '#fff', border: '1px solid #ececec', borderLeft: '4px solid #1a3a2a', marginBottom: '1.5rem', overflow: 'hidden' }}>
+
+            {/* 標題列 */}
+            <div style={{ background: '#1a3a2a', padding: '.65rem clamp(1.25rem,4vw,2rem)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: '.92rem', fontWeight: 700, color: '#fff', fontFamily: "'Noto Serif TC', serif" }}>⚡ 快速投標評估</span>
+              <span style={{ marginLeft: 'auto', fontSize: '.7rem', color: '#9fd8c4', fontWeight: 300 }}>僅供參考，以法院公告為準</span>
+            </div>
+
+            {/* 三指標 ＋ 現金試算 */}
+            <div className="fp-decision-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #ececec' }}>
+
+              {/* 左：三個投標指標 */}
+              <div style={{ padding: '1.1rem clamp(1.25rem,4vw,2rem)', borderRight: '1px solid #f0f0f0' }}>
+
+                {/* 折扣率 */}
+                <div style={{ marginBottom: '.9rem' }}>
+                  <div style={{ fontSize: '.7rem', color: '#aaa', letterSpacing: '.06em', marginBottom: '.25rem' }}>折扣率（底價 vs 實價均價）</div>
+                  {dScore !== null ? (
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                      <span style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '1.65rem', fontWeight: 700, lineHeight: 1,
+                        color: dScore >= 20 ? '#3a7d2c' : dScore >= 10 ? '#c2632a' : dScore > 0 ? '#888' : '#b03a3a' }}>
+                        {dScore > 0 ? `-${dScore}%` : dScore < 0 ? `+${Math.abs(dScore)}%` : '持平'}
+                      </span>
+                      <span style={{ fontSize: '.78rem', color: '#aaa' }}>
+                        {dScore >= 20 ? '大幅低於市價' : dScore >= 10 ? '略低於市價' : dScore > 0 ? '接近市價' : '高於市價'}
+                      </span>
+                    </div>
+                  ) : <span style={{ fontSize: '.82rem', color: '#ddd' }}>LVR 資料不足</span>}
+                </div>
+
+                {/* 點交情形 */}
+                <div style={{ marginBottom: '.9rem' }}>
+                  <div style={{ fontSize: '.7rem', color: '#aaa', letterSpacing: '.06em', marginBottom: '.25rem' }}>點交情形</div>
+                  {delivStr ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 15 }}>{delivStr.includes('不') ? '⚠️' : '✅'}</span>
+                      <span style={{ fontSize: '.875rem', fontWeight: 600,
+                        color: delivStr.includes('不') ? '#b03a3a' : '#3a7d2c' }}>{delivStr}</span>
+                      <span style={{ fontSize: '.72rem', color: '#bbb' }}>
+                        {delivStr.includes('不') ? '須自行處理占用' : '降低後續處理成本'}
+                      </span>
+                    </div>
+                  ) : <span style={{ fontSize: '.82rem', color: '#ddd' }}>未標示，請向法院確認</span>}
+                </div>
+
+                {/* 拍次 */}
+                <div>
+                  <div style={{ fontSize: '.7rem', color: '#aaa', letterSpacing: '.06em', marginBottom: '.25rem' }}>目前拍次</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <span style={{ fontFamily: "'Noto Serif TC', serif", fontSize: '1.1rem', fontWeight: 700,
+                      color: roundNum >= 3 ? '#3a7d2c' : roundNum >= 2 ? '#c2632a' : '#444' }}>
+                      {item.auction_round || `第 ${roundNum} 拍`}
+                    </span>
+                    <span style={{ fontSize: '.72rem', color: '#aaa' }}>
+                      {roundNum === 1 ? '競標較激烈' : `底價已較初拍降 ${Math.round((1 - Math.pow(0.8, roundNum - 1)) * 100)}%`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 右：現金試算 */}
+              <div style={{ padding: '1.1rem clamp(1.25rem,4vw,2rem)' }}>
+                <div style={{ fontSize: '.72rem', fontWeight: 500, color: '#c2632a', letterSpacing: '.1em', marginBottom: '.75rem' }}>💰 現金準備試算</div>
+                {([
+                  { label: '投標保證金',     value: depositWanCalc ? `${depositWanCalc.toLocaleString()} 萬` : null, color: '#c2632a', note: '開標前須備妥現金票據' },
+                  { label: '預估得標價區間', value: (bidLoWan && bidHiWan) ? `${bidLoWan.toLocaleString()} ～ ${bidHiWan.toLocaleString()} 萬` : null, color: '#444', note: '底價 ×1.0 ～ 1.25' },
+                  { label: '頭期款（約 30%）', value: (cashLoWan && cashHiWan) ? `${cashLoWan.toLocaleString()} ～ ${cashHiWan.toLocaleString()} 萬` : null, color: '#444', note: '實際依銀行核貸' },
+                  { label: '可申請貸款（70%）', value: (loanLoWan && loanHiWan) ? `${loanLoWan.toLocaleString()} ～ ${loanHiWan.toLocaleString()} 萬` : null, color: '#2a5298', note: '法拍貸款成數依銀行評估' },
+                ] as { label: string; value: string | null; color: string; note: string }[]).map((row, i, arr) => row.value ? (
+                  <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8,
+                    padding: '.38rem 0', borderBottom: i < arr.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+                    <div>
+                      <div style={{ fontSize: '.8rem', color: '#888' }}>{row.label}</div>
+                      <div style={{ fontSize: '.68rem', color: '#ccc' }}>{row.note}</div>
+                    </div>
+                    <span style={{ fontSize: '.9rem', fontWeight: 600, color: row.color, flexShrink: 0 }}>{row.value}</span>
+                  </div>
+                ) : null)}
+              </div>
+            </div>
+
+            {/* 綜合評估列 */}
+            <div style={{ padding: '.65rem clamp(1.25rem,4vw,2rem)', background: wBg, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '.875rem', fontWeight: 600, color: wColor }}>{wIcon} 綜合評估：{wVerdict}</span>
+              <span style={{ fontSize: '.75rem', color: wColor, opacity: .75 }}>{wSub}</span>
+            </div>
+          </div>
+          )}
 
           {/* ══════════════════════════════════════════════════════════
               主體雙欄
