@@ -98,7 +98,7 @@ export default async function CityPage({ params }: { params: Params }) {
         *, *::before, *::after { box-sizing: border-box; }
         body { background: #fafafa; margin: 0; font-family: 'Noto Sans TC', sans-serif; }
         .site-bar { background: #fff; border-bottom: 1px solid #ececec; position: sticky; top: 0; z-index: 100; }
-        .site-bar-inner { max-width: 960px; margin: 0 auto; padding: 0 clamp(1rem,3vw,1.75rem); display: flex; align-items: center; gap: 1rem; height: 52px; }
+        .site-bar-inner { max-width: 1100px; margin: 0 auto; padding: 0 clamp(1rem,3vw,1.75rem); display: flex; align-items: center; gap: 1rem; height: 52px; }
         .site-logo { font-family: 'Noto Serif TC', serif; font-size: 1.05rem; font-weight: 700; color: #c2632a; text-decoration: none; flex-shrink: 0; }
         .site-logo span { font-size: .72rem; font-weight: 400; color: #aaa; margin-left: 6px; }
         .nav-link { font-size: .82rem; color: #888; text-decoration: none; padding: .3rem .7rem; border-radius: 2px; transition: all .15s; }
@@ -122,7 +122,7 @@ export default async function CityPage({ params }: { params: Params }) {
       </header>
 
       <main style={{ minHeight: '100vh', background: '#fafafa', paddingBottom: '5rem' }}>
-        <div style={{ maxWidth: 960, margin: '0 auto', padding: '0 clamp(1rem,4vw,1.75rem)' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 clamp(1rem,4vw,1.75rem)' }}>
 
           {/* 麵包屑 */}
           <nav style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '1.4rem 0 1.1rem', fontSize: 11 }}>
@@ -162,7 +162,7 @@ export default async function CityPage({ params }: { params: Params }) {
               background: '#fff8f4', marginBottom: '1rem' }}>
               依行政區瀏覽
             </h2>
-            <div className="dist-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+            <div className="dist-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
               {districts.map((r: any) => {
                 const distAvg = r.avg ? Math.floor(Number(r.avg) / 10000) : null;
                 return (
@@ -206,7 +206,7 @@ export default async function CityPage({ params }: { params: Params }) {
                 background: '#fff8f4', marginBottom: '1rem' }}>
                 法拍建物類型分布
               </h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
                 {typeRows.map((r: any) => {
                   const pct = Math.round(Number(r.n) / total * 100);
                   const typeAvg = r.avg ? Math.floor(Number(r.avg) / 10000) : null;

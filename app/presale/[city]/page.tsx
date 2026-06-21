@@ -69,13 +69,13 @@ export default async function PresaleCityPage({ params }: { params: Params }) {
         .crumb { font-size: 11px; color: #bbb; text-decoration: none; }
         .crumb:hover { color: #1a6b3a; }
         .hero { background: #fff; border-bottom: 1px solid #ececec; }
-        .hero-inner { max-width: 960px; margin: 0 auto; padding: clamp(1rem,3vw,1.75rem) clamp(1rem,3vw,1.75rem) clamp(1.25rem,3vw,2rem); }
-        .stat-grid { background: #fff; border-bottom: 1px solid #ececec; display: grid; grid-template-columns: repeat(4,1fr); max-width: 960px; margin: 0 auto; }
+        .hero-inner { max-width: 1100px; margin: 0 auto; padding: clamp(1rem,3vw,1.75rem) clamp(1rem,3vw,1.75rem) clamp(1.25rem,3vw,2rem); }
+        .stat-grid { background: #fff; border-bottom: 1px solid #ececec; display: grid; grid-template-columns: repeat(4,1fr); max-width: 1100px; margin: 0 auto; }
         .stat-cell { padding: 1rem 1.5rem; border-right: 1px solid #f0f0f0; }
         .stat-cell:last-child { border-right: none; }
         .stat-val { font-family: 'Noto Serif TC', serif; font-size: 1rem; font-weight: 700; color: #1a6b3a; }
         .stat-lbl { font-size: .72rem; color: #aaa; margin-top: .2rem; }
-        .wrap { max-width: 960px; margin: 0 auto; padding: clamp(1.5rem,4vw,2rem) clamp(1rem,3vw,1.75rem); }
+        .wrap { max-width: 1100px; margin: 0 auto; padding: clamp(1.5rem,4vw,2rem) clamp(1rem,3vw,1.75rem); }
         .sec-head { font-family: 'Noto Serif TC', serif; font-size: .95rem; font-weight: 700; color: #1a6b3a; border-left: 4px solid #1a6b3a; padding: .55rem 1rem; background: #f0fdf4; margin-bottom: .75rem; }
         .dist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
         .dist-card { display: block; background: #fff; border: 1px solid #d1e8d8; padding: 1rem 1.25rem; text-decoration: none; color: inherit; transition: all .15s; }
