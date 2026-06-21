@@ -380,9 +380,9 @@ export default async function LvrDistrictPage({
 
         @media(max-width:768px) {
           .layout { grid-template-columns: 1fr; }
-          /* 主內容優先，sidebar 排到最後 */
-          .sidebar { position: static; order: 2; margin-top: .5rem; }
-          .layout > main { order: 1; }
+          /* 手機：篩選欄移到主內容上方，預設收合 */
+          .sidebar { position: static; order: -1; margin-bottom: .5rem; }
+          .layout > main { order: 0; }
           .price-col { display: none; }
           .price-mobile {
             display: flex; align-items: baseline; gap: 6px;

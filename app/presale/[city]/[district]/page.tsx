@@ -105,15 +105,15 @@ export default async function PresaleDistrictPage({ params }: { params: Params }
         .crumb { font-size: 11px; color: #bbb; text-decoration: none; }
         .crumb:hover { color: #1a6b3a; }
         .hero { background: #fff; border-bottom: 1px solid #ececec; }
-        .hero-inner { max-width: 960px; margin: 0 auto; padding: clamp(1rem,3vw,1.75rem); }
-        .stat-row { background: #fff; border-bottom: 1px solid #ececec; display: grid; grid-template-columns: repeat(4,1fr); max-width: 960px; margin: 0 auto; }
+        .hero-inner { max-width: 1100px; margin: 0 auto; padding: clamp(1rem,3vw,1.75rem); }
+        .stat-row { background: #fff; border-bottom: 1px solid #ececec; display: grid; grid-template-columns: repeat(4,1fr); max-width: 1100px; margin: 0 auto; }
         .stat-cell { padding: .9rem 1.5rem; border-right: 1px solid #f0f0f0; }
         .stat-cell:last-child { border-right: none; }
         .stat-val { font-family: 'Noto Serif TC', serif; font-size: .95rem; font-weight: 700; color: #1a6b3a; }
         .stat-lbl { font-size: .7rem; color: #aaa; margin-top: .15rem; }
-        .wrap { max-width: 960px; margin: 0 auto; padding: clamp(1.25rem,3vw,2rem) clamp(1rem,3vw,1.75rem); }
+        .wrap { max-width: 1100px; margin: 0 auto; padding: clamp(1.25rem,3vw,2rem) clamp(1rem,3vw,1.75rem); }
         .sec-head { font-family: 'Noto Serif TC', serif; font-size: .92rem; font-weight: 700; color: #1a6b3a; border-left: 4px solid #1a6b3a; padding: .5rem 1rem; background: #f0fdf4; margin-bottom: .75rem; }
-        .proj-list { display: flex; flex-direction: column; gap: 6px; }
+        .proj-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 8px; }
         .proj-card { background: #fff; border: 1px solid #d1e8d8; display: grid; grid-template-columns: 1fr auto; text-decoration: none; color: inherit; transition: all .15s; }
         .proj-card:hover { border-color: #1a6b3a; box-shadow: 0 2px 8px rgba(26,107,58,.08); }
         .proj-body { padding: .85rem 1rem; }
@@ -124,7 +124,7 @@ export default async function PresaleDistrictPage({ params }: { params: Params }
         .price-big { font-family: 'Noto Serif TC', serif; font-size: 1.15rem; font-weight: 700; color: #1a6b3a; }
         .price-big small { font-size: .62rem; color: #1a6b3a; margin-left: 1px; }
         .price-unit { font-size: .7rem; color: #aaa; }
-        @media(max-width:600px){ .stat-row { grid-template-columns: 1fr 1fr; } .proj-price { display: none; } }
+        @media(max-width:640px){ .stat-row { grid-template-columns: 1fr 1fr; } .proj-price { display: none; } .proj-list { grid-template-columns: 1fr; } }
       `}</style>
 
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
