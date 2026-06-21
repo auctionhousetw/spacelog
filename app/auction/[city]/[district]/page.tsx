@@ -13,6 +13,7 @@ type Params  = Promise<{ city: string; district: string }>;
 type SearchP = Promise<{
   page?: string; sort?: string; delivery?: string;
   priceMin?: string; priceMax?: string; typeFilter?: string;
+  discountMin?: string;
 }>;
 
 const PAGE_SIZE = 30;
@@ -81,16 +82,30 @@ export default async function DistrictPage({
   const sp = await searchParams;
 
   const page       = Math.max(1, parseInt(sp.page || '1', 10));
-  const sort       = sp.sort === 'price' ? 'price' : 'date';
-  const delivery   = sp.delivery === 'yes' ? 'yes' : sp.delivery === 'no' ? 'no' : '';
-  const priceMin   = sp.priceMin && /^\d+$/.test(sp.priceMin) ? parseInt(sp.priceMin, 10) : null;
-  const priceMax   = sp.priceMax && /^\d+$/.test(sp.priceMax) ? parseInt(sp.priceMax, 10) : null;
-  const typeFilter = KNOWN_TYPES.includes(sp.typeFilter || '') ? (sp.typeFilter || '') : '';
+  const sort        = sp.sort === 'price' ? 'price' : sp.sort === 'delivery' ? 'delivery' : 'date';
+  const delivery    = sp.delivery === 'yes' ? 'yes' : sp.delivery === 'no' ? 'no' : '';
+  const priceMin    = sp.priceMin && /^\d+$/.test(sp.priceMin) ? parseInt(sp.priceMin, 10) : null;
+  const priceMax    = sp.priceMax && /^\d+$/.test(sp.priceMax) ? parseInt(sp.priceMax, 10) : null;
+  const typeFilter  = KNOWN_TYPES.includes(sp.typeFilter || '') ? (sp.typeFilter || '') : '';
+  const discountMin = sp.discountMin && /^\d+$/.test(sp.discountMin) ? parseInt(sp.discountMin, 10) : null;
 
   const c     = decodeURIComponent(city);
   const d     = decodeURIComponent(district);
   const safeC = c.replace(/'/g, "''");
   const safeD = d.replace(/'/g, "''");
+
+  // 折扣篩選需要先知道 LVR 均價才能建 WHERE 條件
+  let lvrAvgForFilter: number | null = null;
+  if (discountMin !== null) {
+    const lvrPre = await prismaLvr.$queryRawUnsafe<any[]>(
+      `SELECT AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price
+       FROM lvr_land
+       WHERE city='${safeC}' AND district='${safeD}'
+         AND tx_type LIKE '%建物%'
+         AND tx_date_iso >= to_char(CURRENT_DATE - INTERVAL '2 years', 'YYYY-MM-DD')`
+    ).catch(() => []);
+    lvrAvgForFilter = lvrPre[0]?.avg_price ? Number(lvrPre[0].avg_price) : null;
+  }
 
   const conds = [`city='${safeC}'`, `district='${safeD}'`];
   if (delivery === 'yes') { conds.push(`delivery LIKE '%點交%'`); conds.push(`delivery NOT LIKE '%不點交%'`); }
@@ -98,11 +113,15 @@ export default async function DistrictPage({
   if (priceMin !== null)  conds.push(`price >= ${priceMin * 10000}`);
   if (priceMax !== null)  conds.push(`price <= ${priceMax * 10000}`);
   if (typeFilter)         conds.push(`type LIKE '%${typeFilter}%'`);
+  if (discountMin !== null && lvrAvgForFilter && lvrAvgForFilter > 0)
+    conds.push(`price <= ${Math.round(lvrAvgForFilter * (1 - discountMin / 100))}`);
   const whereStr  = conds.join(' AND ');
   const baseWhere = `city='${safeC}' AND district='${safeD}'`;
 
   const orderByStr = sort === 'price'
     ? `CASE WHEN is_agent_featured=1 THEN 0 ELSE 1 END, CASE WHEN price IS NULL OR price=0 THEN 1 ELSE 0 END, price ASC`
+    : sort === 'delivery'
+    ? `CASE WHEN is_agent_featured=1 THEN 0 ELSE 1 END, CASE WHEN delivery LIKE '%點交%' AND delivery NOT LIKE '%不點交%' THEN 0 ELSE 1 END, CASE WHEN auction_date IS NULL OR auction_date='' THEN 1 ELSE 0 END, auction_date DESC`
     : `CASE WHEN is_agent_featured=1 THEN 0 ELSE 1 END, CASE WHEN auction_date IS NULL OR auction_date='' THEN 1 ELSE 0 END, auction_date DESC`;
 
   const [statsRows, listings, otherDistricts, countRow, typeRows, lvrRow, roadRows, roundRows, inheritedRows] = await Promise.all([
@@ -247,17 +266,18 @@ export default async function DistrictPage({
     ? Math.round((1 - Number(st.avg) / lvrAvgPrice) * 100)
     : null;
   const fmtWan = (v: number | null) => v ? `${v.toLocaleString()} 萬` : '—';
-  const hasFilter = !!(delivery || typeFilter || priceMin !== null || priceMax !== null);
+  const hasFilter = !!(delivery || typeFilter || priceMin !== null || priceMax !== null || discountMin !== null);
   const relatedPeriods = c.includes('台中') ? (TAICHUNG_DISTRICT_PERIODS[d] || []) : [];
   const inheritedCount = Number(inheritedRows?.[0]?.n ?? 0);
 
   const q = (overrides: Record<string, string | number | undefined>) => {
     const base: Record<string, string | number | undefined> = {
       sort,
-      delivery:   delivery   || undefined,
-      priceMin:   priceMin   ?? undefined,
-      priceMax:   priceMax   ?? undefined,
-      typeFilter: typeFilter || undefined,
+      delivery:    delivery    || undefined,
+      priceMin:    priceMin    ?? undefined,
+      priceMax:    priceMax    ?? undefined,
+      typeFilter:  typeFilter  || undefined,
+      discountMin: discountMin ?? undefined,
     };
     const merged = { ...base, ...overrides };
     const pairs = Object.entries(merged).filter(([, v]) => v !== '' && v !== undefined && v !== null);
@@ -546,8 +566,31 @@ export default async function DistrictPage({
                   className={`pill${sort === 'date' ? ' active' : ''}`}>依開標日 新→舊</a>
                 <a href={q({ sort: 'price', page: undefined })}
                   className={`pill${sort === 'price' ? ' active' : ''}`}>依底價 低→高</a>
+                <a href={q({ sort: 'delivery', page: undefined })}
+                  className={`pill${sort === 'delivery' ? ' active' : ''}`}>✅ 點交優先</a>
               </div>
             </div>
+
+            {/* 折扣篩選（有 LVR 均價才顯示） */}
+            {lvrAvgWan && (
+              <div className="filter-row">
+                <span className="filter-label">折扣</span>
+                <div className="filter-pills">
+                  <a href={q({ discountMin: undefined, page: undefined })}
+                    className={`pill${discountMin === null ? ' active' : ''}`}>不限</a>
+                  {([10, 20, 30, 50] as const).map(pct => (
+                    <a key={pct}
+                      href={q({ discountMin: pct, page: undefined })}
+                      className={`pill${discountMin === pct ? ' active' : ''}`}>
+                      比市價低 {pct}%+
+                    </a>
+                  ))}
+                </div>
+                <span style={{ fontSize: '.7rem', color: '#ccc', marginLeft: 4, whiteSpace: 'nowrap' }}>
+                  市價均 {lvrAvgWan.toLocaleString()} 萬
+                </span>
+              </div>
+            )}
 
             {/* 點交 */}
             <div className="filter-row">
