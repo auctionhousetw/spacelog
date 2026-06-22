@@ -63,7 +63,13 @@ const getHomepageData = unstable_cache(
         { auctionTotal, auctionRecent, lvrTotal, presaleTotal, recentHouses, cityStats, presaleCityStats },
         (_, v) => typeof v === 'bigint' ? Number(v) : v
       )
-    );
+    ) as {
+      auctionTotal: number; auctionRecent: number;
+      lvrTotal: number; presaleTotal: number;
+      recentHouses: any[];
+      cityStats: { city: string; n: number }[];
+      presaleCityStats: { city: string; n: number }[];
+    };
   },
   ['homepage-data'],
   { revalidate: 1800 }
