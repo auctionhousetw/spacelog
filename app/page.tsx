@@ -467,6 +467,10 @@ export default async function HomePage() {
           本平台資料來源為司法院、內政部不動產交易實價登錄，僅供參考。<br />
           投標前請至司法院官網確認最新底價與開標資訊。
         </p>
+        <p style={{ marginTop: '.5rem' }}>
+          <a href="/about" style={{ color: '#aaa', textDecoration: 'none', margin: '0 .5rem', fontSize: '.75rem' }}>關於本站</a>
+          <a href="/privacy" style={{ color: '#aaa', textDecoration: 'none', margin: '0 .5rem', fontSize: '.75rem' }}>隱私權政策</a>
+        </p>
       </footer>
     </>
   );
