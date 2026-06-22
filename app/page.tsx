@@ -58,7 +58,12 @@ const getHomepageData = unstable_cache(
       presaleCityStats = presaleCities.map((r: any) => ({ city: r.city, n: Number(r.n) }));
     } catch { /* DB 未就緒 */ }
 
-    return { auctionTotal, auctionRecent, lvrTotal, presaleTotal, recentHouses, cityStats, presaleCityStats };
+    return JSON.parse(
+      JSON.stringify(
+        { auctionTotal, auctionRecent, lvrTotal, presaleTotal, recentHouses, cityStats, presaleCityStats },
+        (_, v) => typeof v === 'bigint' ? Number(v) : v
+      )
+    );
   },
   ['homepage-data'],
   { revalidate: 1800 }
