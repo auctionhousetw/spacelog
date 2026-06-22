@@ -148,6 +148,10 @@ export default async function PresalePage() {
 
       <footer className="footer">
         <p>預售屋成交資料來源：內政部不動產交易實價登錄，僅供參考。<br />投資購屋前請向建商確認最新售價與合約條件。</p>
+        <p style={{ marginTop: '.5rem' }}>
+          <a href="/about" style={{ color: '#ccc', textDecoration: 'none', margin: '0 .5rem' }}>關於本站</a>
+          <a href="/privacy" style={{ color: '#ccc', textDecoration: 'none', margin: '0 .5rem' }}>隱私權政策</a>
+        </p>
       </footer>
     </>
   );

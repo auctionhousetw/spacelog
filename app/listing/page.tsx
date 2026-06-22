@@ -218,6 +218,10 @@ export default async function ListingPage() {
         <p style={{ fontSize: '.75rem', color: '#bbb', fontWeight: 300, margin: 0 }}>
           買賣掛牌功能由「法拍屋資訊平台」提供。刊登費用與規格以正式上線公告為準。
         </p>
+        <p style={{ marginTop: '.5rem' }}>
+          <a href="/about" style={{ fontSize: '.75rem', color: '#ccc', textDecoration: 'none', margin: '0 .5rem' }}>關於本站</a>
+          <a href="/privacy" style={{ fontSize: '.75rem', color: '#ccc', textDecoration: 'none', margin: '0 .5rem' }}>隱私權政策</a>
+        </p>
       </footer>
     </>
   );
