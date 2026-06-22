@@ -1,10 +1,6 @@
 import { notFound } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+import ClaimForm from './ClaimForm';
+import prisma from '@/lib/prisma';
 import prismaLvr from '@/lib/prisma-lvr';
 
 export const revalidate = 86400;
@@ -260,7 +256,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
     nearbyRows     = nearbyFetched;
     // 預售屋記錄（同行政區、地址含路名）
     if (roadName) {
-      presaleRows = await prismaLvr.$queryRawUnsafe<any[]>(
+      presaleRows = await prisma.$queryRawUnsafe<any[]>(
         `SELECT id, project_name, floor, total_floors, building_type,
                 area_sqm, bedrooms, halls, total_price, unit_price_sqm,
                 tx_date_iso, city, district
@@ -284,7 +280,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
       } else {
         // fallback：lvr_presale 用寬鬆路段名比對
         const safeAddrShort = addrShort.replace(/'/g, "''");
-        const fallbackRows = await prismaLvr.$queryRawUnsafe<any[]>(
+        const fallbackRows = await prisma.$queryRawUnsafe<any[]>(
           `SELECT project_name, COUNT(*) as n
            FROM lvr_presale
            WHERE city='${safeC}' AND district='${safeD}'
@@ -822,6 +818,9 @@ export default async function CommunityPage({ params }: { params: Params }) {
             }
           </p>
         </div>}
+
+        {/* 認領社區頁 */}
+        <ClaimForm city={c} district={d} communityName={a} />
 
         {/* 返回行政區 */}
         <div style={{ textAlign: 'center' }}>

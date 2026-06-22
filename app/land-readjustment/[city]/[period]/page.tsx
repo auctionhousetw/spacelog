@@ -1,10 +1,5 @@
 import { notFound } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+import prisma from '@/lib/prisma';
 import prismaLvr from '@/lib/prisma-lvr';
 
 export const revalidate = 86400;
@@ -79,7 +74,7 @@ export default async function LandReadjustmentHubPage({ params }: { params: Para
         ORDER BY auction_date DESC NULLS LAST, id DESC LIMIT 8
       `).catch(() => []),
       // 預售：用行政區（預售資料無地段資訊）
-      prismaLvr.$queryRawUnsafe<any[]>(`
+      prisma.$queryRawUnsafe<any[]>(`
         SELECT project_name, COUNT(*) as n,
                AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit,
                MAX(tx_date_iso) as last_date

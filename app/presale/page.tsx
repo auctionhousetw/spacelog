@@ -1,6 +1,6 @@
 export const revalidate = 86400;
 ﻿import { notFound } from 'next/navigation';
-import prismaLvr from '@/lib/prisma-lvr';
+import prisma from '@/lib/prisma';
 
 export const metadata = {
   title: '預售屋成交行情 | 全台各縣市建案實價登錄',
@@ -15,7 +15,7 @@ export default async function PresalePage() {
   let total = 0;
 
   try {
-    const rows = await prismaLvr.$queryRawUnsafe<any[]>(
+    const rows = await prisma.$queryRawUnsafe<any[]>(
       `SELECT city,
               COUNT(*) as n,
               AVG(CASE WHEN total_price>0 THEN total_price END) as avg,

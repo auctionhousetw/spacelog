@@ -1,11 +1,5 @@
 import { notFound } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
-import prismaLvr from '@/lib/prisma-lvr';
+import prisma from '@/lib/prisma';
 
 export const revalidate = 86400;
 
@@ -47,7 +41,7 @@ export async function generateMetadata({ params }: { params: Params }) {
   const p = decodeURIComponent(project);
   let n = 0, avg = 0;
   try {
-    const rows = await prismaLvr.$queryRawUnsafe<any[]>(
+    const rows = await prisma.$queryRawUnsafe<any[]>(
       `SELECT COUNT(*) as n, AVG(CASE WHEN total_price>0 THEN total_price END) as avg
        FROM lvr_presale WHERE city='${c.replace(/'/g, "''")}' AND district='${d.replace(/'/g, "''")}' AND project_name='${p.replace(/'/g, "''")}'`
     );
@@ -78,14 +72,14 @@ export default async function PresaleProjectPage({ params }: { params: Params })
   try {
     const [recs, statsRows, layouts, floors, areas, trends, nbProjects, distPrice, nbAuctions, rawGrid] = await Promise.all([
       // 所有成交記錄
-      prismaLvr.$queryRawUnsafe<any[]>(
+      prisma.$queryRawUnsafe<any[]>(
         `SELECT * FROM lvr_presale
          WHERE city='${safeC}' AND district='${safeD}' AND project_name='${safeP}'
            AND total_price > 0
          ORDER BY tx_date_iso DESC LIMIT 200`
       ),
       // 統計
-      prismaLvr.$queryRawUnsafe<any[]>(
+      prisma.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit,
@@ -97,7 +91,7 @@ export default async function PresaleProjectPage({ params }: { params: Params })
          WHERE city='${safeC}' AND district='${safeD}' AND project_name='${safeP}'`
       ),
       // 格局分布
-      prismaLvr.$queryRawUnsafe<any[]>(
+      prisma.$queryRawUnsafe<any[]>(
         `SELECT bedrooms, halls, COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit
@@ -107,7 +101,7 @@ export default async function PresaleProjectPage({ params }: { params: Params })
          GROUP BY bedrooms, halls ORDER BY bedrooms, halls`
       ),
       // 樓層均價
-      prismaLvr.$queryRawUnsafe<any[]>(
+      prisma.$queryRawUnsafe<any[]>(
         `SELECT floor, COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit
@@ -117,7 +111,7 @@ export default async function PresaleProjectPage({ params }: { params: Params })
          GROUP BY floor ORDER BY n DESC LIMIT 15`
       ),
       // 坪數分布
-      prismaLvr.$queryRawUnsafe<any[]>(
+      prisma.$queryRawUnsafe<any[]>(
         `SELECT CASE
                   WHEN area_sqm < 49.6  THEN '15坪以下'
                   WHEN area_sqm < 99.2  THEN '15～30坪'
@@ -133,7 +127,7 @@ export default async function PresaleProjectPage({ params }: { params: Params })
          GROUP BY range_label ORDER BY range_min`
       ),
       // 年度走勢
-      prismaLvr.$queryRawUnsafe<any[]>(
+      prisma.$queryRawUnsafe<any[]>(
         `SELECT SUBSTRING(tx_date_iso,1,4) as year,
                 COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,
@@ -144,7 +138,7 @@ export default async function PresaleProjectPage({ params }: { params: Params })
          GROUP BY SUBSTRING(tx_date_iso, 1, 4) ORDER BY 1`
       ),
       // 同區其他預售建案
-      prismaLvr.$queryRawUnsafe<any[]>(
+      prisma.$queryRawUnsafe<any[]>(
         `SELECT project_name, COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price
          FROM lvr_presale
@@ -153,7 +147,7 @@ export default async function PresaleProjectPage({ params }: { params: Params })
          GROUP BY project_name ORDER BY n DESC LIMIT 8`
       ),
       // 同區實價成屋行情（近一年）
-      prismaLvr.$queryRawUnsafe<any[]>(
+      prisma.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit,
@@ -170,7 +164,7 @@ export default async function PresaleProjectPage({ params }: { params: Params })
          ORDER BY auction_date DESC LIMIT 6`
       ),
       // 棟別樓層戶別熱圖資料（全量聚合）
-      prismaLvr.$queryRawUnsafe<any[]>(
+      prisma.$queryRawUnsafe<any[]>(
         `SELECT floor, building_unit, COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit,

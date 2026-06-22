@@ -1,11 +1,6 @@
 export const revalidate = 86400;
 import { redirect } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+import prisma from '@/lib/prisma';
 import prismaLvr from '@/lib/prisma-lvr';
 
 type SearchParams = Promise<{ q?: string }>;
@@ -102,7 +97,7 @@ export default async function CommunitySearchPage({ searchParams }: { searchPara
           return [...map.values()].sort((a, b) => b.n - a.n).slice(0, 20);
         }),
 
-        prismaLvr.$queryRawUnsafe<{ city: string; district: string; project_name: string; n: bigint; avg_price: number | null }[]>(
+        prisma.$queryRawUnsafe<{ city: string; district: string; project_name: string; n: bigint; avg_price: number | null }[]>(
           `SELECT city, district, project_name, COUNT(*) as n,
                   AVG(CASE WHEN total_price>0 THEN total_price END) as avg_price
            FROM lvr_presale

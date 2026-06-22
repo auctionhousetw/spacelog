@@ -1,11 +1,6 @@
-import { PrismaClient } from '@prisma/client';
 import { unstable_cache } from 'next/cache';
 import { AddressSearchBox } from './components/AddressSearchBox';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+import prisma from '@/lib/prisma';
 import prismaLvr from '@/lib/prisma-lvr';
 
 export const revalidate = 1800;
@@ -30,7 +25,7 @@ const getHomepageData = unstable_cache(
         prismaLvr.$queryRawUnsafe<any[]>(
           `SELECT COUNT(*) as total FROM lvr_land`
         ).catch(() => [{ total: 0 }]),
-        prismaLvr.$queryRawUnsafe<any[]>(
+        prisma.$queryRawUnsafe<any[]>(
           `SELECT COUNT(*) as total FROM lvr_presale`
         ).catch(() => [{ total: 0 }]),
         prisma.$queryRawUnsafe<any[]>(
@@ -47,7 +42,7 @@ const getHomepageData = unstable_cache(
            WHERE city IS NOT NULL AND city != ''
            GROUP BY city ORDER BY n DESC`
         ),
-        prismaLvr.$queryRawUnsafe<any[]>(
+        prisma.$queryRawUnsafe<any[]>(
           `SELECT city, COUNT(*) as n FROM lvr_presale
            WHERE city IS NOT NULL AND city != ''
            GROUP BY city ORDER BY n DESC`

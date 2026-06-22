@@ -1,10 +1,5 @@
 import { notFound } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+import prisma from '@/lib/prisma';
 import prismaLvr from '@/lib/prisma-lvr';
 
 export const revalidate = 86400;
@@ -50,7 +45,7 @@ export default async function CompareDistrictPage({ params }: { params: Params }
          GROUP BY district ORDER BY n DESC`
       ),
       // 預售屋：同縣市各區
-      prismaLvr.$queryRawUnsafe<any[]>(
+      prisma.$queryRawUnsafe<any[]>(
         `SELECT district,
                 COUNT(*) as n,
                 AVG(CASE WHEN unit_price_sqm > 0 THEN unit_price_sqm END) as avg_unit

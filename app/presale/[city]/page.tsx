@@ -1,6 +1,6 @@
 export const revalidate = 86400;
 ﻿import { notFound } from 'next/navigation';
-import prismaLvr from '@/lib/prisma-lvr';
+import prisma from '@/lib/prisma';
 
 type Params = Promise<{ city: string }>;
 
@@ -25,7 +25,7 @@ export default async function PresaleCityPage({ params }: { params: Params }) {
   try {
     const safeC = c.replace(/'/g, "''");
     const [statsRows, distRows] = await Promise.all([
-      prismaLvr.$queryRawUnsafe<any[]>(
+      prisma.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg,
                 AVG(CASE WHEN unit_price_sqm>0 THEN unit_price_sqm END) as avg_unit,
@@ -33,7 +33,7 @@ export default async function PresaleCityPage({ params }: { params: Params }) {
                 MAX(tx_date_iso) as latest
          FROM lvr_presale WHERE city='${safeC}'`
       ),
-      prismaLvr.$queryRawUnsafe<any[]>(
+      prisma.$queryRawUnsafe<any[]>(
         `SELECT district,
                 COUNT(*) as n,
                 AVG(CASE WHEN total_price>0 THEN total_price END) as avg,
