@@ -1,4 +1,5 @@
-﻿import { notFound } from 'next/navigation';
+﻿export const revalidate = 86400;
+import { notFound } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
 import prismaLvr from '@/lib/prisma-lvr';
 
@@ -264,9 +265,11 @@ export default async function LvrDistrictPage({
       records = fetched;
     }
   } catch (e: any) {
-    if (e?.message?.includes('no such table')) notFound();
-    throw e;
+    const msg = String(e?.message || e?.digest || '');
+    if (msg.startsWith('NEXT_')) throw e;
+    // DB error (cold start timeout, connection refused, etc.) → show notFound
   }
+  if (!distStats) notFound();
 
   const totalPages = Math.ceil(totalCount / pageSize);
   const avgWan     = distStats.avg ? Math.round(Number(distStats.avg) / 10000) : null;

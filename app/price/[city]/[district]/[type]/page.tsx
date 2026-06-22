@@ -116,9 +116,10 @@ export default async function PriceTypePage({
     yearTrend  = trendRows;
     otherTypes = otherRows;
   } catch (e: any) {
-    if (e?.message?.includes('no such table')) notFound();
-    throw e;
+    const msg = String(e?.message || e?.digest || '');
+    if (msg.startsWith('NEXT_')) throw e;
   }
+  if (!stats) notFound();
 
   const totalPages = Math.ceil(totalCount / pageSize);
   const avgWan     = stats.avg  ? Math.round(Number(stats.avg) / 10000) : null;
