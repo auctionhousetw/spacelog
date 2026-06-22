@@ -1,7 +1,5 @@
 'use client';
 
-export const revalidate = 86400;
-
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import type { WatchItem } from '@/components/ShareButtons';
