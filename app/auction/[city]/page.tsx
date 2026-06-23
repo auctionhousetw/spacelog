@@ -1,12 +1,7 @@
 export const revalidate = 86400;
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+import prisma from '@/lib/prisma';
 import prismaLvr from '@/lib/prisma-lvr';
 
 type Params = Promise<{ city: string }>;

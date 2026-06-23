@@ -1,10 +1,5 @@
 export const revalidate = 86400;
-import { PrismaClient } from '@prisma/client';
-
-const prismaClientSingleton = () => new PrismaClient({ log: ['error'] });
-declare global { var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>; }
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+import prisma from '@/lib/prisma';
 
 export const metadata = {
   title: '買賣掛牌 | 全台房地產資訊平台',
