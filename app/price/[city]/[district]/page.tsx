@@ -755,7 +755,7 @@ export default async function LvrDistrictPage({
                 <p style={{ color: '#aaa', fontSize: '.9rem' }}>此條件無成交記錄，請調整篩選條件</p>
               </div>
             ) : records.map((r: any) => {
-              const priceWan = r.total_price ? Math.round(r.total_price / 10000) : null;
+              const priceWan = r.total_price ? Math.round(Number(r.total_price) / 10000) : null;
               const areaPing = r.area_sqm ? sqmToPing(Number(r.area_sqm)).toFixed(1) : null;
               const unitWan  = r.unit_price_sqm ? unitSqmToWanPerPing(Number(r.unit_price_sqm)).toFixed(1) : null;
               const sc = statusColor(r.tx_type);

@@ -353,7 +353,7 @@ export default async function HomePage() {
             </div>
             <div className="card-grid">
               {recentHouses.map((h: any) => {
-                const priceWan = h.price ? Math.floor(h.price / 10000) : null;
+                const priceWan = h.price ? Math.floor(Number(h.price) / 10000) : null;
                 const href = `/auction/${encodeURIComponent(h.city || '未知縣市')}/${encodeURIComponent(h.district || '未知區域')}/${h.id}`;
                 const badgeS = statusStyle(h.status);
                 return (

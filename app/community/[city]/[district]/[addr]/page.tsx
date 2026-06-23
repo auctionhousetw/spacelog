@@ -720,7 +720,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
             <div className="sec-head orange">⚖️ 此棟法拍記錄（{auctionRecords.length} 筆）</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 1 }}>
               {auctionRecords.map((h: any) => {
-                const priceWan = h.price ? Math.floor(h.price / 10000) : null;
+                const priceWan = h.price ? Math.floor(Number(h.price) / 10000) : null;
                 const href = `/auction/${encodeURIComponent(h.city)}/${encodeURIComponent(h.district)}/${h.id}`;
                 return (
                   <a key={h.id} href={href} className="auction-row">
@@ -757,7 +757,7 @@ export default async function CommunityPage({ params }: { params: Params }) {
         {totalCount > 0 && <><div className="sec-head">📊 實價登錄成交記錄（{totalCount} 筆）</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginBottom: '2rem' }}>
           {lvrRecords.map((r: any, i: number) => {
-            const priceWan = r.total_price ? Math.round(r.total_price / 10000) : null;
+            const priceWan = r.total_price ? Math.round(Number(r.total_price) / 10000) : null;
             const areaPing = r.area_sqm ? sqmToPing(Number(r.area_sqm)).toFixed(1) : null;
             const unitWan  = r.unit_price_sqm ? unitSqmToWanPerPing(Number(r.unit_price_sqm)).toFixed(1) : null;
             const floorPart = r.address?.includes('號')

@@ -290,7 +290,7 @@ export default async function PriceTypePage({
               此條件無成交記錄
             </div>
           ) : records.map((r: any) => {
-            const priceWan = r.total_price ? Math.round(r.total_price / 10000) : null;
+            const priceWan = r.total_price ? Math.round(Number(r.total_price) / 10000) : null;
             const areaPing = r.area_sqm ? sqmToPing(Number(r.area_sqm)).toFixed(1) : null;
             const unitWan  = r.unit_price_sqm ? unitSqmToWanPerPing(Number(r.unit_price_sqm)).toFixed(1) : null;
             return (

@@ -683,7 +683,7 @@ export default async function DistrictPage({
           {/* 物件卡片 */}
           <div className="card-list">
             {listings.length > 0 ? listings.map((h: any) => {
-              const priceWan  = h.price ? Math.floor(h.price / 10000) : null;
+              const priceWan  = h.price ? Math.floor(Number(h.price) / 10000) : null;
               const cat       = h.category || '法拍屋';
               const href      = `/${encodeURIComponent(cat)}/${encodeURIComponent(c)}/${encodeURIComponent(d)}/${h.id}`;
               const badgeS    = statusStyle(h.status);

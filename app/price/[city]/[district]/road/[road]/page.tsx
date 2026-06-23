@@ -276,7 +276,7 @@ export default async function PriceRoadPage({
         {/* 交易列表 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginBottom: '1.5rem' }}>
           {records.map((r: any) => {
-            const priceWan = r.total_price ? Math.round(r.total_price / 10000) : null;
+            const priceWan = r.total_price ? Math.round(Number(r.total_price) / 10000) : null;
             const areaPing = r.area_sqm ? sqmToPing(Number(r.area_sqm)).toFixed(1) : null;
             const unitWan  = r.unit_price_sqm ? unitSqmToWanPerPing(Number(r.unit_price_sqm)).toFixed(1) : null;
             return (

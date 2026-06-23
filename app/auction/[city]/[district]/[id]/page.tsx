@@ -1022,7 +1022,7 @@ export default async function ItemPage({
                 {lvrRecent.length > 0 && (
                 <div style={{ padding: '.5rem 0' }}>
                   {lvrRecent.map((r: any, i: number) => {
-                    const priceWan = r.total_price ? Math.round(r.total_price / 10000) : null;
+                    const priceWan = r.total_price ? Math.round(Number(r.total_price) / 10000) : null;
                     const areaPing = r.area_sqm    ? (Number(r.area_sqm) / 3.30579).toFixed(1) : null;
                     const unitWan  = r.unit_price_sqm ? (Number(r.unit_price_sqm) * 3.30579 / 10000).toFixed(1) : null;
                     return (
@@ -1068,7 +1068,7 @@ export default async function ItemPage({
                 <div style={{ padding: '.5rem 0' }}>
                   {relatedItems.map((rel: any) => {
                     const relCat = rel.type || '電梯大樓';
-                    const relPrice = rel.price ? `${Math.floor(rel.price / 10000).toLocaleString()} 萬` : null;
+                    const relPrice = rel.price ? `${Math.floor(Number(rel.price) / 10000).toLocaleString()} 萬` : null;
                     const relHref = `/auction/${encodeURIComponent(rel.city || cityDecoded)}/${encodeURIComponent(rel.district || distDecoded)}/${rel.id}`;
                     return (
                       <Link key={rel.id} href={relHref} className="fp-rel-row">
