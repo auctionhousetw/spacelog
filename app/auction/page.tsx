@@ -483,7 +483,7 @@ export default async function Home({ searchParams }: HomeProps) {
               <div className="card-list">
                 {featuredItems.map((house: any) => {
                   const href = `/auction/${encodeURIComponent(house.city || '未知縣市')}/${encodeURIComponent(house.district || '未知區域')}/${house.id}`;
-                  const priceWan = house.price ? Math.floor(house.price / 10000) : null;
+                  const priceWan = house.price ? Math.floor(Number(house.price) / 10000) : null;
                   const badgeS = statusStyle(house.status);
                   return (
                     <a key={house.id} href={href} className="featured-card">
@@ -522,7 +522,7 @@ export default async function Home({ searchParams }: HomeProps) {
           <div className="card-list">
             {houses.length > 0 ? houses.map(house => {
               const href = `/auction/${encodeURIComponent(house.city || '未知縣市')}/${encodeURIComponent(house.district || '未知區域')}/${house.id}`;
-              const priceWan = house.price ? Math.floor(house.price / 10000) : null;
+              const priceWan = house.price ? Math.floor(Number(house.price) / 10000) : null;
               const badgeS = statusStyle(house.status);
               const today = new Date().toISOString().slice(0, 10);
               const isExpired = !!house.auction_date && house.auction_date < today;
